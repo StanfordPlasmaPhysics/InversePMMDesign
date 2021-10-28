@@ -1,5 +1,5 @@
 import numpy as np
-from PMMInverse import PMMI
+from PMM.PMMInverse import PMMI
 import os
 
 a = 0.015
