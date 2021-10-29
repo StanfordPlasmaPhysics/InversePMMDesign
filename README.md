@@ -5,7 +5,7 @@ _____
 
 ### Quick Tutorial
 
-1. First, use the setup.py file to make sure you have all the dependencies and 'install' PMM. It would behoove you to do this in a seperate conda environment
+1. First, use the setup.py file to make sure you have all the dependencies and 'install' PMM. It would behoove you to do this in a seperate conda environment. _Note: The ceviche field solver uses the PARDISO sparse matrix solver; which is part of Intel's MKL poackage (pyMKL, a requirement for ceviche, is a wrapper for this) and is responsible for the fast parallel performance of the field solvers. If you are running on an HPC system, you will likely need to load an MKL module._
 ~~~
     (base)$ git clone https://github.com/StanfordPlasmaPhysics/InversePMMDesign
     (base)$ cd InversePMMDesign
