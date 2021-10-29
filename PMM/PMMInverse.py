@@ -1281,10 +1281,14 @@ class PMMI:
         else:
             raise RuntimeError("The two sources must have the same polarization.")
 
-        E01 = mode_overlap(E1, self.probes[prb_1][0])
-        E02 = mode_overlap(E2, self.probes[prb_2][0])
-        E01l = field_mag_int(E1, self.probes[prb_2][3])
-        E02l = field_mag_int(E2, self.probes[prb_1][3])
+        if E01 == None:
+            E01 = mode_overlap(E1, self.probes[prb_1][0])
+        if E02 == None:
+            E02 = mode_overlap(E2, self.probes[prb_2][0])
+        if E01l == None:
+            E01l = field_mag_int(E1, self.probes[prb_2][3])
+        if E02l == None:
+            E02l = field_mag_int(E2, self.probes[prb_1][3])
             
         #Define objective
         def objective(rho):
