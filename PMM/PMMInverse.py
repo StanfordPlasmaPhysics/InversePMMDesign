@@ -920,6 +920,106 @@ class PMMI:
         return gamma_Hz/(c/self.a)
 
 
+    def Get_MP_Norms(self, Rho, src_1, src_2, prb_1, prb_2, bounds = [],\
+                     plasma = False, wpmax = 0, gamma = 0, uniform = True):
+        """
+        Get norms for a given set of starting parameters; useful for cases
+        where runs are cut off prematurely
+
+        Args:
+            Rho: Initial parameters
+            src_1: Key for source 1 in the sources dict.
+            src_2: Key for source 2 in the sources dict.
+            prb_1: Key for probe 1 in the probes dict.
+            prb_2: Key for probe 2 in the probes dict.
+            bounds: Lower and upper limits to permittivity values (e.g. [-6,1])
+            plasma: bool specifying if params map to wp
+            wp_max: Max plasma frequency in a units
+            gamma: Damping frequency in a units
+            uniform: bool, specifies whether plasma density profile is uniform
+        """
+        if plasma:
+            epsr_init1 = self.Rho_Parameterization_wp(Rho,\
+                    self.sources[src_1][1]*self.a/2/np.pi/c, wp_max, gamma,\
+                    uniform)
+            epsr_init2 = self.Rho_Parameterization_wp(Rho,\
+                    self.sources[src_2][1]*self.a/2/np.pi/c, wp_max, gamma,\
+                    uniform)
+        else:
+            epsr_init1 = self.Rho_Parameterization(Rho, bounds)
+            epsr_init2 = self.Rho_Parameterization(Rho, bounds)
+
+        if self.sources[src_1][2] == 'hz' and self.sources[src_2][2] == 'hz':
+            sim1 = fdfd_hz(self.sources[src_1][1], self.dl, epsr_init1,\
+                           [self.Npml, self.Npml])
+            sim2 = fdfd_hz(self.sources[src_2][1], self.dl, epsr_init2,\
+                           [self.Npml, self.Npml])
+            E1, _, _ = sim1.solve(self.sources[src_1][0])
+            E2, _, _ = sim2.solve(self.sources[src_2][0])
+        elif self.sources[src_1][2] == 'ez' and self.sources[src_2][2] == 'ez':
+            sim1 = fdfd_ez(self.sources[src_1][1], self.dl, epsr_init1,\
+                           [self.Npml, self.Npml])
+            sim2 = fdfd_ez(self.sources[src_2][1], self.dl, epsr_init2,\
+                           [self.Npml, self.Npml])
+            _, _, E1 = sim1.solve(self.sources[src_1][0])
+            _, _, E2 = sim2.solve(self.sources[src_2][0])
+        else:
+            raise RuntimeError("The two sources must have the same polarization.")
+
+        E01 = mode_overlap(E1, self.probes[prb_1][0])
+        E02 = mode_overlap(E2, self.probes[prb_2][0])
+        E01l = field_mag_int(E1, self.probes[prb_2][3])
+        E02l = field_mag_int(E2, self.probes[prb_1][3])
+
+        return np.array([E01, E02, E01l, E02l])
+
+
+    def Get_WG_Norms(self, Rho, src, prb, prbl, bounds = [], plasma = False,\
+                     wpmax = 0, gamma = 0, uniform = True, pen = True):
+        """
+        Get norms for a given set of starting parameters; useful for cases
+        where runs are cut off prematurely
+
+        Args:
+            Rho: Initial parameters
+            src_1: Key for source 1 in the sources dict.
+            src_2: Key for source 2 in the sources dict.
+            prb_1: Key for probe 1 in the probes dict.
+            prb_2: Key for probe 2 in the probes dict.
+            bounds: Lower and upper limits to permittivity values (e.g. [-6,1])
+            plasma: bool specifying if params map to wp
+            wp_max: Max plasma frequency in a units
+            gamma: Damping frequency in a units
+            uniform: bool, specifies whether plasma density profile is uniform
+            pen: bool, is there a penalty?
+        """
+        if plasma:
+            epsr_init = self.Rho_Parameterization_wp(Rho,\
+                    self.sources[src][1]*self.a/2/np.pi/c, wp_max, gamma,\
+                    uniform)
+        else:
+            epsr_init = self.Rho_Parameterization(Rho, bounds)
+
+        if self.sources[src][2] == 'hz':
+            sim = fdfd_hz(self.sources[src][1], self.dl, epsr_init,\
+                           [self.Npml, self.Npml])
+            E, _, _ = sim.solve(self.sources[src][0])
+        elif self.sources[src][2] == 'ez':
+            sim = fdfd_ez(self.sources[src][1], self.dl, epsr_init,\
+                           [self.Npml, self.Npml])
+            _, _, E = sim.solve(self.sources[src][0])
+        else:
+            raise RuntimeError("The source polarization is not valid.")
+
+        E0 = mode_overlap(E, self.probes[prb][0])
+        E0l = field_mag_int(E, self.probes[prbl][3])
+
+        if pen:
+            return np.array([E0, E0l])
+        else:
+            return E0
+
+
     ###########################################################################
     ## Optimizers
     ###########################################################################
