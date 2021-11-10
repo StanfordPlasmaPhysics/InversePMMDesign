@@ -921,7 +921,7 @@ class PMMI:
 
 
     def Get_MP_Norms(self, Rho, src_1, src_2, prb_1, prb_2, bounds = [],\
-                     plasma = False, wpmax = 0, gamma = 0, uniform = True):
+                     plasma = False, wp_max = 0, gamma = 0, uniform = True):
         """
         Get norms for a given set of starting parameters; useful for cases
         where runs are cut off prematurely
@@ -975,7 +975,7 @@ class PMMI:
 
 
     def Get_WG_Norms(self, Rho, src, prb, prbl, bounds = [], plasma = False,\
-                     wpmax = 0, gamma = 0, uniform = True, pen = True):
+                     wp_max = 0, gamma = 0, uniform = True, pen = True):
         """
         Get norms for a given set of starting parameters; useful for cases
         where runs are cut off prematurely
