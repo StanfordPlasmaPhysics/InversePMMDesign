@@ -24,6 +24,8 @@ from ceviche.optimizers import adam_optimize
 from ceviche.modes import insert_mode
 import collections
 from functools import partial
+from scipy.sparse import csr_matrix
+
 
 ###############################################################################
 ## Utility Functions and Globals
@@ -183,6 +185,7 @@ class PMMI:
         
         train_elem = np.zeros((self.epsr.shape))
         train_elem[rr, cc] = 1
+        train_elem = csr_matrix(train_elem)
         self.train_elems.append(train_elem)
 
 
@@ -209,8 +212,8 @@ class PMMI:
             train_elem[rro, cco] = 1
             if i > 0:
                 train_elem[rri, cci] = 0
-                #train_elem = train_elem - np.multiply(train_elem,\
-                #             self.train_elems[len(self.train_elems)-1])
+
+            train_elem = csr_matrix(train_elem)
             self.train_elems.append(train_elem)
 
 
@@ -706,11 +709,13 @@ class PMMI:
         """
         rho = rho.flatten()
         rho = npa.arctan(rho) / np.pi + 0.5
-        train_epsr = np.zeros(self.train_elems[0].shape)
-        elem_locations = np.zeros(self.train_elems[0].shape)
+        train_elem = self.train_elems[0].todense()
+        train_epsr = np.zeros(train_elem.shape)
+        elem_locations = np.zeros(train_elem.shape)
         for i in range(len(rho)):
-            train_epsr += rho[i]*self.train_elems[i]
-            elem_locations += self.train_elems[i]
+            train_elem = self.train_elems[i].todense()
+            train_epsr += rho[i]*train_elem
+            elem_locations += train_elem
         
         return train_epsr, elem_locations
 
@@ -738,11 +743,13 @@ class PMMI:
             rho = npa.subtract(1, npa.divide(wp2p, denom))
         else:
             rho = npa.subtract(1, npa.divide(npa.power(npa.abs(rho), 2), denom))
-        train_epsr = np.zeros(self.train_elems[0].shape)
-        elem_locations = np.zeros(self.train_elems[0].shape)
+        train_elem = self.train_elems[0].todense()
+        train_epsr = np.zeros(train_elem.shape)
+        elem_locations = np.zeros(train_elem.shape)
         for i in range(len(rho)):
-            train_epsr = train_epsr + rho[i]*self.train_elems[i]
-            elem_locations += self.train_elems[i]
+            train_elem = self.train_elems[i].todense()
+            train_epsr = train_epsr + rho[i]*train_elem
+            elem_locations += train_elem
         
         return train_epsr, elem_locations
 
@@ -766,8 +773,9 @@ class PMMI:
         rho = rho.flatten()
         pmat = pmat.flatten()
         denom = w_src**2 + 1j*gamma*w_src
-        train_epsr = np.zeros(self.train_elems[0].shape)
-        elem_locations = np.zeros(self.train_elems[0].shape)
+        train_elem = self.train_elems[0].todense()
+        train_epsr = np.zeros(train_elem.shape)
+        elem_locations = np.zeros(train_elem.shape)
         if wp_max > 0:
             rho = (wp_max/1.5)*npa.arctan(rho/(wp_max/7.5))
         if pmat.shape == rho.shape:
@@ -777,15 +785,17 @@ class PMMI:
                 rho_shell = npa.subtract(1, npa.divide(npa.multiply(wp2p,\
                             4*((4.6/6.5)**2)*(1-r**6/(self.rod_shells-1)**6)/3), denom))
                 for i in range(len(rho_shell)):
-                    train_epsr = train_epsr + rho_shell[i]*self.train_elems[i*self.rod_shells + r]
-                    elem_locations += self.train_elems[i*self.rod_shells + r]
+                    train_elem = self.train_elems[i*self.rod_shells + r].todense()
+                    train_epsr = train_epsr + rho_shell[i]*train_elem
+                    elem_locations += train_elem
         else:
             for r in range(self.rod_shells):
                 rho_shell = npa.subtract(1, npa.divide(npa.multiply(npa.power(npa.abs(rho), 2),\
                             4*((4.6/6.5)**2)*(1-r**6/(self.rod_shells-1)**6)/3), denom))
                 for i in range(len(rho_shell)):
-                    train_epsr = train_epsr + rho_shell[i]*self.train_elems[i*self.rod_shells + r]
-                    elem_locations += self.train_elems[i*self.rod_shells + r]
+                    train_elem = self.train_elems[i*self.rod_shells + r].todense()
+                    train_epsr = train_epsr + rho_shell[i]*train_elem
+                    elem_locations += train_elem
         
         return train_epsr, elem_locations
 
