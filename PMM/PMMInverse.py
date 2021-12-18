@@ -432,7 +432,7 @@ class PMMI:
                             vmin = np.min(self.epsr), vmax = np.max(self.epsr)),\
                             ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
-        plt.savefig(savepath)
+        plt.savefig(savepath, dpi=1500)
         plt.show()
 
         return (simulation, ax)
@@ -472,7 +472,7 @@ class PMMI:
                             vmin = np.min(self.epsr), vmax = np.max(self.epsr)),\
                             ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
-        plt.savefig(savepath)
+        plt.savefig(savepath, dpi=1500)
         plt.show()
 
         return (simulation, ax)
@@ -542,7 +542,7 @@ class PMMI:
                             vmin = np.min(self.design_region*np.real(epsr_opt)),\
                             vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
-        plt.savefig(savepath)
+        plt.savefig(savepath, dpi=1500)
 
         if show:
             plt.show()
@@ -615,7 +615,7 @@ class PMMI:
                             vmin = np.min(self.design_region*np.real(epsr_opt)),\
                             vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
-        plt.savefig(savepath)
+        plt.savefig(savepath, dpi=1500)
 
         if show:
             plt.show()
