@@ -709,11 +709,11 @@ class PMMI:
         """
         rho = rho.flatten()
         rho = npa.arctan(rho) / np.pi + 0.5
-        train_elem = self.train_elems[0].todense()
+        train_elem = self.train_elems[0].toarray()
         train_epsr = np.zeros(train_elem.shape)
         elem_locations = np.zeros(train_elem.shape)
         for i in range(len(rho)):
-            train_elem = self.train_elems[i].todense()
+            train_elem = self.train_elems[i].toarray()
             train_epsr += rho[i]*train_elem
             elem_locations += train_elem
         
@@ -743,11 +743,11 @@ class PMMI:
             rho = npa.subtract(1, npa.divide(wp2p, denom))
         else:
             rho = npa.subtract(1, npa.divide(npa.power(npa.abs(rho), 2), denom))
-        train_elem = self.train_elems[0].todense()
+        train_elem = self.train_elems[0].toarray()
         train_epsr = np.zeros(train_elem.shape)
         elem_locations = np.zeros(train_elem.shape)
         for i in range(len(rho)):
-            train_elem = self.train_elems[i].todense()
+            train_elem = self.train_elems[i].toarray()
             train_epsr = train_epsr + rho[i]*train_elem
             elem_locations += train_elem
         
@@ -773,7 +773,7 @@ class PMMI:
         rho = rho.flatten()
         pmat = pmat.flatten()
         denom = w_src**2 + 1j*gamma*w_src
-        train_elem = self.train_elems[0].todense()
+        train_elem = self.train_elems[0].toarray()
         train_epsr = np.zeros(train_elem.shape)
         elem_locations = np.zeros(train_elem.shape)
         if wp_max > 0:
@@ -785,7 +785,7 @@ class PMMI:
                 rho_shell = npa.subtract(1, npa.divide(npa.multiply(wp2p,\
                             4*((4.6/6.5)**2)*(1-r**6/(self.rod_shells-1)**6)/3), denom))
                 for i in range(len(rho_shell)):
-                    train_elem = self.train_elems[i*self.rod_shells + r].todense()
+                    train_elem = self.train_elems[i*self.rod_shells + r].toarray()
                     train_epsr = train_epsr + rho_shell[i]*train_elem
                     elem_locations += train_elem
         else:
@@ -793,7 +793,7 @@ class PMMI:
                 rho_shell = npa.subtract(1, npa.divide(npa.multiply(npa.power(npa.abs(rho), 2),\
                             4*((4.6/6.5)**2)*(1-r**6/(self.rod_shells-1)**6)/3), denom))
                 for i in range(len(rho_shell)):
-                    train_elem = self.train_elems[i*self.rod_shells + r].todense()
+                    train_elem = self.train_elems[i*self.rod_shells + r].toarray()
                     train_epsr = train_epsr + rho_shell[i]*train_elem
                     elem_locations += train_elem
         
