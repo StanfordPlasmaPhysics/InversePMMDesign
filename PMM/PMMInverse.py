@@ -96,15 +96,30 @@ def Sp_u(Sp, u):
     return np.dot(Sp, u)
 
 
-def Calc_Transmission(Fx, Fy, Fz, pol, src, u_s, prb, u_p):
+def Sp_mag(Sp):
+    """
+    Get a matrix with the magnitude of the Poynting Vector
+
+    Args:
+        Sp: Poynting vector matrix
+        u: Unit vector in direction of interest
+    """
+    S = np.zeros((Sp.shape[0],Sp.shape[1]))
+    for i in range(Sp.shape[0]):
+        for j in range(Sp.shape[1]):
+            S[i,j] = np.sqrt(np.dot(np.real(Sp[i,j,:]),np.real(Sp[i,j,:])))
+            
+    return S
+
+
+def Calc_Transmission(Fx, Fy, Fz, pol, denom, prb, u_p):
     """
     Calculate absolute transmission between a source and a probe
 
     Args:
         Fx,Fy,Fz: simulated fields
         pol: str, specifies 'ez' or 'hz' polarization
-        src: source mask
-        u_s: normal unit vector to src plane
+        denom: denominator for transmission calculation (in case of reflection)
         prb: probe mask
         u_p: normal unit vector to prb plane
     """
@@ -115,20 +130,9 @@ def Calc_Transmission(Fx, Fy, Fz, pol, src, u_s, prb, u_p):
     else:
         RuntimeError("Invalid polarization")
 
-    Sp_s = np.real(Sp_u(Sp, u_s))
-    Sp_p = np.real(Sp_u(Sp, u_p))
-    #print(Sp_s[140,50])
+    Sp_p = npa.real(Sp_u(Sp, u_p))
 
-    #print(np.where(prb==1))
-    #print(npa.multiply(prb,Sp_p)[np.where(npa.multiply(prb,Sp_p)!=0)])
-    #print(npa.sum(npa.multiply(Sp_p,prb)))
-    #print(Sp[np.where(npa.multiply(prb,Sp_p)!=0),:])
-    #print(np.where(src==1))
-    #print(npa.multiply(src,Sp_s)[np.where(npa.multiply(src,Sp_s)!=0)])
-    #print(npa.sum(npa.multiply(Sp_s,src)))
-    #print(mode_overlap(Sp_p, prb))
-
-    return npa.abs(sum_overlap(Sp_p, prb)/sum_overlap(Sp_s, src))
+    return sum_overlap(Sp_p, prb)/denom
 
 
 def field_mag_int(E, mask):
@@ -202,6 +206,7 @@ class PMMI:
         self.probes = {} #Empty dict to hold probe arrays
         self.rod_shells = 0 #Integer that tells you how many shells exist in a
                             #single trainable rod.
+        self.fields = []
 
     ###########################################################################
     ## Design Region Stuff
@@ -536,8 +541,6 @@ class PMMI:
         plt.savefig(savepath, dpi=1500)
         plt.show()
 
-        return (simulation, ax)
-
 
     def Viz_Sim_Fields(self, src_names, savepath, perm = True):
         """
@@ -548,74 +551,52 @@ class PMMI:
         """
         if perm:
             fig, ax = plt.subplots(1, len(src_names)+1, constrained_layout=False,\
-                                   figsize=(9*len(src_names),4))
-
-            for i in range(len(src_names)):
-                if self.sources[src_names[i]][2] == 'hz':
-                    simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl, self.epsr,\
-                                [self.Npml, self.Npml])
-                    Ex, Ey, Hz = simulation.solve(self.sources[src_names[i]][0])
-                    cbar = plt.colorbar(ax[i].imshow(np.real(Hz.T), cmap='RdBu'), ax=ax[i])
-                    cbar.set_ticks([])
-                    cbar.ax.set_ylabel('H-Field', fontsize=font)
-                    ax[i].axes.xaxis.set_visible(False)
-                    ax[i].axes.yaxis.set_visible(False)
-                    #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
-                elif self.sources[src_names[i]][2] == 'ez':
-                    simulation = fdfd_ez(self.sources[src_names[i]][1], self.dl, self.epsr,\
-                                [self.Npml, self.Npml])
-                    Hx, Hy, Ez = simulation.solve(self.sources[src_names[i]][0])
-                    cbar = plt.colorbar(ax[i].imshow(np.real(Ez.T), cmap='RdBu'), ax=ax[i])
-                    cbar.set_ticks([])
-                    cbar.ax.set_ylabel('E-Field', fontsize=font)
-                    ax[i].axes.xaxis.set_visible(False)
-                    ax[i].axes.yaxis.set_visible(False)
-                    #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
-                else:
-                    raise RuntimeError('The polarization associated with this source is\
-                                        not valid.')
-                
-            cbar = plt.colorbar(ax[len(src_names)].imshow(self.epsr.T, cmap='RdGy',\
-                            vmin = np.min(self.epsr), vmax = np.max(self.epsr)),\
-                            ax=ax[len(src_names)])
-            cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
-            ax[len(src_names)].axes.xaxis.set_visible(False)
-            ax[len(src_names)].axes.yaxis.set_visible(False)
-            plt.savefig(savepath, dpi=1500)
-            plt.show()
-
+                                   figsize=(4.5*(len(src_names)+1),4))
         else:
             fig, ax = plt.subplots(1, len(src_names), constrained_layout=False,\
                                    figsize=(4.5*len(src_names),3))
 
-            if self.sources[src_names[0]][2] == 'hz':
-                simulation = fdfd_hz(self.sources[src_names[0]][1], self.dl, self.epsr,\
-                            [self.Npml, self.Npml])
-                Ex, Ey, Hz = simulation.solve(self.sources[src_names[0]][0])
-                cbar = plt.colorbar(ax.imshow(np.real(Hz.T), cmap='RdBu'), ax=ax)
+        for i in range(len(src_names)):
+            if self.sources[src_names[i]][2] == 'hz':
+                if self.fields == []:
+                    simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl,\
+                                         self.epsr, [self.Npml, self.Npml])
+                    Ex, Ey, Hz = simulation.solve(self.sources[src_names[i]][0])
+                    self.fields = [Ex, Ey, Hz]
+                    
+                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2].T), cmap='RdBu'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('H-Field', fontsize=font)
-                ax.axes.xaxis.set_visible(False)
-                ax.axes.yaxis.set_visible(False)
+                ax[i].axes.xaxis.set_visible(False)
+                ax[i].axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
-            elif self.sources[src_names[0]][2] == 'ez':
-                simulation = fdfd_ez(self.sources[src_names[0]][1], self.dl, self.epsr,\
-                            [self.Npml, self.Npml])
-                Hx, Hy, Ez = simulation.solve(self.sources[src_names[0]][0])
-                cbar = plt.colorbar(ax.imshow(np.real(Ez.T), cmap='RdBu'), ax=ax)
+            elif self.sources[src_names[i]][2] == 'ez':
+                if self.fields == []:
+                    simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl,\
+                                         self.epsr, [self.Npml, self.Npml])
+                    Hx, Hy, Ez = simulation.solve(self.sources[src_names[i]][0])
+                    self.fields = [Hx, Hy, Ez]
+                    
+                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2].T), cmap='RdBu'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('E-Field', fontsize=font)
-                ax.axes.xaxis.set_visible(False)
-                ax.axes.yaxis.set_visible(False)
+                ax[i].axes.xaxis.set_visible(False)
+                ax[i].axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             else:
                 raise RuntimeError('The polarization associated with this source is\
-                                        not valid.')
-
-            plt.savefig(savepath, dpi=1500)
-            plt.show()
-
-        return (simulation, ax)
+                                   not valid.')
+        
+        if perm:
+            cbar = plt.colorbar(ax[len(src_names)].imshow(self.epsr.T, cmap='RdGy',\
+                        vmin = np.min(self.epsr), vmax = np.max(self.epsr)),\
+                        ax=ax[len(src_names)])
+            cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
+            ax[len(src_names)].axes.xaxis.set_visible(False)
+            ax[len(src_names)].axes.yaxis.set_visible(False)
+            
+        plt.savefig(savepath, dpi=1500)
+        plt.show()
 
 
     def Viz_Sim_abs_opt(self, rho, src_names, savepath, bounds = [], plasma = False,\
@@ -663,17 +644,23 @@ class PMMI:
                 epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
 
             if pol == 'hz':
-                simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
-                Ex, Ey, Hz = simulation.solve(src)
-                cbar = plt.colorbar(ax[i].imshow(np.abs(Hz.T), cmap='magma'), ax=ax[i])
+                if self.fields == []:
+                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Ex, Ey, Hz = simulation.solve(src)
+                    self.fields = [Ex, Ey, Hz]
+
+                cbar = plt.colorbar(ax[i].imshow(np.abs(self.fields[2].T), cmap='magma'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('H-Field Magnitude', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
                 ax[i].axes.yaxis.set_visible(False)
             elif pol == 'ez':
-                simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
-                Hx, Hy, Ez = simulation.solve(src)
-                cbar = plt.colorbar(ax[i].imshow(np.abs(Ez.T), cmap='magma'), ax=ax[i])
+                if self.fields == []:
+                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Hx, Hy, Ez = simulation.solve(src)
+                    self.fields = [Hx, Hy, Ez]
+
+                cbar = plt.colorbar(ax[i].imshow(np.abs(self.fields[2].T), cmap='magma'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('E-Field Magnitude', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
@@ -692,8 +679,6 @@ class PMMI:
 
         if show:
             plt.show()
-
-        return (simulation, ax)
 
 
     def Viz_Sim_Poynting(self, src_names, u, savepath, perm = True):
@@ -780,7 +765,7 @@ class PMMI:
 
 
 
-    def Viz_Sim_fields_opt(self, rho, src_names, savepath, bounds = [], plasma = False,\
+    def Viz_Sim_Poynting_opt(self, rho, u, src_names, savepath, bounds = [], plasma = False,\
                            show = True, mult = False, wp_max = 0, gamma = 0, uniform = True,\
                            perturb = 0):
         """
@@ -824,18 +809,107 @@ class PMMI:
                 epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
 
             if pol == 'hz':
-                simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
-                Ex, Ey, Hz = simulation.solve(src)
-                cbar = plt.colorbar(ax[i].imshow(np.real(Hz).T, cmap='RdBu'), ax=ax[i])
+                if self.fields == []:
+                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Ex, Ey, Hz = simulation.solve(src)
+                    self.fields = [Ex, Ey, Hz]
+
+                S = Sp_u(Sp_hz(self.fields[0], self.fields[1], self.fields[2]), u)
+                cbar = plt.colorbar(ax[i].imshow(np.real(S).T, cmap='RdBu'), ax=ax[i])
+                cbar.set_ticks([])
+                cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
+                ax[i].axes.xaxis.set_visible(False)
+                ax[i].axes.yaxis.set_visible(False)
+                #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
+            elif pol == 'ez':
+                if self.fields == []:
+                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Hx, Hy, Ez = simulation.solve(src)
+                    self.fields = [Hx, Hy, Ez]
+ 
+                S = Sp_u(Sp_hz(self.fields[0], self.fields[1], self.fields[2]), u)
+                cbar = plt.colorbar(ax[i].imshow(np.real(S).T, cmap='RdBu'), ax=ax[i])
+                cbar.set_ticks([])
+                cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
+                ax[i].axes.xaxis.set_visible(False)
+                ax[i].axes.yaxis.set_visible(False)
+                #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
+            else:
+                raise RuntimeError('The polarization associated with this source is\
+                                    not valid.')
+
+        cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
+                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
+                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+        cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
+        ax[len(src_names)].axes.xaxis.set_visible(False)
+        ax[len(src_names)].axes.yaxis.set_visible(False)
+        plt.savefig(savepath, dpi=1500)
+
+        if show:
+            plt.show()
+
+
+    def Viz_Sim_fields_opt(self, rho, src_names, savepath, bounds = [], plasma = False,\
+                           show = True, mult = False, wp_max = 0, gamma = 0, uniform = True,\
+                           perturb = 0):
+        """
+        Solve and visualize an optimized simulation with certain sources active
+        
+        Args:
+            rho: optimal parameters
+            src_names: list of strings that indicate which sources you'd like to simulate
+            savepath = save path
+            bounds: Upper and lower bounds for parameters
+            plasma: bool specifying if params map to wp
+            show: bool determining if the plot is shown
+            mult: bool determining if multiple sources are activated at once
+            perturb: sigma value for gaussian perturbation of rods. 0.05 would
+                     result in random perturbations of each element of ~5%.
+        """
+        fig, ax = plt.subplots(1, len(src_names)+1, constrained_layout=False,\
+                               figsize=(4.5*(len(src_names)+1),4))
+        if perturb > 0:
+            pmat = self.Pmat(rho, perturb)
+        else:
+            pmat = np.empty(1)
+        for i in range(len(src_names)):
+            if mult:
+                w_src = self.sources[src_names[i][0]][1]*self.a/2/np.pi/c
+                pol = self.sources[src_names[i][0]][2]
+                w = self.sources[src_names[i][0]][1]
+                src = self.sources[src_names[i][0]][0]
+                for j in range(len(src_names[i])-1):
+                    src = src + self.sources[src_names[i][j+1]][0]
+            else:
+                w_src = self.sources[src_names[i]][1]*self.a/2/np.pi/c
+                pol = self.sources[src_names[i]][2]
+                w = self.sources[src_names[i]][1]
+                src = self.sources[src_names[i]][0]
+
+            if plasma:
+                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
+                                                        uniform, pmat = pmat)
+            else:
+                epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
+
+            if pol == 'hz':
+                if self.fields == []:
+                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Ex, Ey, Hz = simulation.solve(src)
+                    self.fields = [Ex, Ey, Hz]
+                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T, cmap='RdBu'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('H-Field', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
                 ax[i].axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             elif pol == 'ez':
-                simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
-                Hx, Hy, Ez = simulation.solve(src)
-                cbar = plt.colorbar(ax[i].imshow(Ez.T, cmap='RdBu'), ax=ax[i])
+                if self.fields == []:
+                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Hx, Hy, Ez = simulation.solve(src)
+                    self.fields = [Hx, Hy, Ez]
+                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T, cmap='RdBu'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('E-Field', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
@@ -943,7 +1017,381 @@ class PMMI:
             plt.show()
 
         return ax
+    
+    
+    ###########################################################################
+    ## Simulation Tools
+    ###########################################################################
+    def Clear_fields(self):
+        """
+        Clear calculated fields
+        """
+        self.fields = []
+        
+        
+    def FDTD_fields_Opt(self, rho, T, src_names, savepath, plasma = False,\
+                        plot = True, wp_max = 0, gamma = 0, uniform = True,\
+                        bounds = []):
+        if plot:
+            fig, ax = plt.subplots(1,len(src_names)+1,constrained_layout=False,\
+                                   figsize=(4.5*(len(src_names)+1),4))
+            
+        for i in range(len(src_names)):
+            w_src = self.sources[src_names[i]][1]*self.a/2/np.pi/c
+            pol = self.sources[src_names[i]][2]
+            w = self.sources[src_names[i]][1]
+            src = self.sources[src_names[i]][0]
 
+            if plasma:
+                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
+                                                        uniform)
+            else:
+                epsr_opt = self.Rho_Parameterization(rho, bounds)
+
+            if pol == 'hz':
+                if self.fields == []:
+                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Ex, Ey, Hz = simulation.solve(src)
+                    self.fields = [Ex, Ey, Hz]
+                S.append(10*np.log10(Calc_Transmission(self.fields[0], self.fields[1],\
+                                   self.fields[2], pol, self.sources.pop('mask')[3], u_s,\
+                                   self.probes.pop('mask')[3], u_p)))
+                if plot:
+                    cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T, cmap='magma'), ax=ax[i])
+                    cbar.set_ticks([])
+                    cbar.ax.set_ylabel('H-Field', fontsize=font)
+                    ax[i].axes.xaxis.set_visible(False)
+                    ax[i].axes.yaxis.set_visible(False)
+            elif pol == 'ez':
+                if self.fields == []:
+                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Hx, Hy, Ez = simulation.solve(src)
+                    self.fields = [Hx, Hy, Ez]
+                S.append(10*np.log10(Calc_Transmission(self.fields[0], self.fields[1],\
+                                   self.fields[2], pol, self.sources.pop('mask')[3], u_s,\
+                                   self.probes.pop('mask')[3], u_p)))
+                if plot:
+                    cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T, cmap='magma'), ax=ax[i])
+                    cbar.set_ticks([])
+                    cbar.ax.set_ylabel('E-Field', fontsize=font)
+                    ax[i].axes.xaxis.set_visible(False)
+                    ax[i].axes.yaxis.set_visible(False)
+            else:
+                raise RuntimeError('The polarization associated with this source is\
+                               not valid.')
+            
+            print("The requested transmission for source "+str(i)+" is:", S[i])
+                               
+        if plot:
+            cbar = plt.colorbar(ax[1].imshow(np.real(epsr_opt).T, cmap='RdGy',\
+                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
+                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+            cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
+            ax[len(src_names)].axes.xaxis.set_visible(False)
+            ax[len(src_names)].axes.yaxis.set_visible(False)
+            plt.savefig(savepath, dpi=1500)
+            plt.show()
+
+        
+        return S
+        
+        
+    ###########################################################################
+    ## Device Evaluation
+    ###########################################################################    
+    def Calc_SParams_opt(self, rho, src_names, denoms, s11, s21, savepath,\
+                    plasma = False, plot = True, wp_max = 0, gamma = 0,\
+                    uniform = True, bounds = []):
+        """
+        Simulate device given optimal parameters and evaluate the S-parameters
+        between two given source slices.
+        
+        Args:
+            rho: optimal parameters
+            src_names: names of sources in sources dictionary that will be active
+                      in the simulation.
+            denoms: [denominator for S-params]
+            s11: [[np.array([[s11_loc_begin],[s11_loc_end]]), u_s11]]
+                u_s11: unit vector in direction of source propagation
+            s21: [[[np.array([[s21_loc_begin],[s21_loc_end]]), u_s21],...]]
+            savepath = save path
+            bounds: Upper and lower bounds for parameters
+            plasma: bool specifying if params map to wp
+            plot: bool determining if the plot is shown
+        """
+        if plot:
+            fig, ax = plt.subplots(1,len(src_names)+1,constrained_layout=False,\
+                                   figsize=(4.5*(len(src_names)+1),4))
+            
+        S = []
+        for i in range(len(src_names)):
+            w_src = self.sources[src_names[i]][1]*self.a/2/np.pi/c
+            pol = self.sources[src_names[i]][2]
+            w = self.sources[src_names[i]][1]
+            src = self.sources[src_names[i]][0]
+
+            if plasma:
+                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
+                                                        uniform)
+            else:
+                epsr_opt = self.Rho_Parameterization(rho, bounds)
+
+            if pol == 'hz':
+                #Calculate fields if needed
+                if self.fields == []:
+                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Ex, Ey, Hz = simulation.solve(src)
+                    self.fields = [Ex, Ey, Hz]
+                
+                #Plot magnitude of Poynting Vector if plot
+                if plot:
+                    Sp = Sp_mag(Sp_hz(self.fields[0], self.fields[1], self.fields[2]))
+                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
+                    cbar.set_ticks([])
+                    cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
+                    ax[i].axes.xaxis.set_visible(False)
+                    ax[i].axes.yaxis.set_visible(False)
+                    
+            elif pol == 'ez':
+                #Calculate fields if needed
+                if self.fields == []:
+                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Hx, Hy, Ez = simulation.solve(src)
+                    self.fields = [Hx, Hy, Ez]
+                    
+                #Plot magnitude of Poynting Vector if plot
+                if plot:
+                    Sp = Sp_mag(Sp_ez(self.fields[0], self.fields[1], self.fields[2]))
+                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
+                    cbar.set_ticks([])
+                    cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
+                    ax[i].axes.xaxis.set_visible(False)
+                    ax[i].axes.yaxis.set_visible(False)
+            else:
+                raise RuntimeError('The polarization associated with this source is\
+                               not valid.')
+            
+            #Calculate Sparams
+            S_src = []
+            self.Add_Probe(s11[i][0][0,:], s11[i][0][1,:], w_src, 'mask', pol)
+            Flux = Calc_Transmission(self.fields[0], self.fields[1],\
+                    self.fields[2], pol, 1, self.probes.pop('mask')[3], s11[i][1])
+            print('denom:',denoms[i])
+            print('S11 Flux:',Flux)
+            S_src.append(10*np.log10(np.abs(denoms[i] - Flux)/denoms[i]))
+            for s21_prb in (s21[i]):
+                print('probe:',s21_prb)
+                self.Add_Probe(s21_prb[0][0,:], s21_prb[0][1,:], w_src, 'mask', pol)
+                Flux = Calc_Transmission(self.fields[0], self.fields[1],\
+                    self.fields[2], pol, 1, self.probes.pop('mask')[3], s21_prb[1])
+                print('flux:',Flux)
+                S_src.append(10*np.log10(Flux/denoms[i]))
+            S.append(S_src)
+            print("The requested S-params for source "+str(i)+" are:", S[i])
+                               
+        if plot:
+            cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
+                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
+                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+            cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
+            ax[len(src_names)].axes.xaxis.set_visible(False)
+            ax[len(src_names)].axes.yaxis.set_visible(False)
+            plt.savefig(savepath, dpi=1500)
+            plt.show()
+        
+        return S
+    
+    
+    def Get_Total_Flux(self, src_names, prbs, opt = False, rho = None, savepath = 'none.pdf',
+                       plasma = False, plot = True, wp_max = 0, gamma = 0,\
+                       uniform = True, bounds = []):
+        """
+        Get total energy flux out of a source.
+        
+        Args:
+            rho: optimal parameters
+            src_names: names of sources in sources dictionary that will be active
+                      in the simulation.
+            denom: denominator for S-params
+            prbs: [[[np.array([[prb_loc_begin],[prb_loc_end]]), u_prb]]]
+                u_prb: unit vector in direction of source propagation
+            savepath = save path
+            bounds: Upper and lower bounds for parameters
+            plasma: bool specifying if params map to wp
+            plot: bool determining if the plot is shown
+        """
+        if plot:
+            fig, ax = plt.subplots(1,len(src_names)+1,constrained_layout=False,\
+                                   figsize=(4.5*(len(src_names)+1),4))
+            
+        flux_out = []
+        for i in range(len(src_names)):
+            if i > 0:
+                if src_names[i] != src_names[i-1]:
+                    self.Clear_fields()
+            w_src = self.sources[src_names[i]][1]*self.a/2/np.pi/c
+            pol = self.sources[src_names[i]][2]
+            w = self.sources[src_names[i]][1]
+            src = self.sources[src_names[i]][0]
+            
+            if not opt:
+                epsr_opt = self.epsr
+            else:
+                if plasma:
+                    epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
+                                                        uniform)
+                else:
+                    epsr_opt = self.Rho_Parameterization(rho, bounds)
+                
+            if pol == 'hz':
+                #Calculate fields if needed
+                if self.fields == []:
+                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Ex, Ey, Hz = simulation.solve(src)
+                    self.fields = [Ex, Ey, Hz]
+                
+                #Plot magnitude of Poynting Vector if plot
+                if plot:
+                    Sp = Sp_mag(Sp_hz(self.fields[0], self.fields[1], self.fields[2]))
+                    
+            elif pol == 'ez':
+                #Calculate fields if needed
+                if self.fields == []:
+                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Hx, Hy, Ez = simulation.solve(src)
+                    self.fields = [Hx, Hy, Ez]
+                    
+                    #Plot magnitude of Poynting Vector if plot
+                if plot:
+                    Sp = Sp_mag(Sp_ez(self.fields[0], self.fields[1], self.fields[2]))
+                    
+            else:
+                raise RuntimeError('The polarization associated with this source is\
+                               not valid.')
+                    
+            if plot:
+                cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
+                cbar.set_ticks([])
+                cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
+                ax[i].axes.xaxis.set_visible(False)
+                ax[i].axes.yaxis.set_visible(False)
+            
+            flux_tot = 0
+            for prb_ in prbs[i]:
+                self.Add_Probe(prb_[0][0,:], prb_[0][1,:], w_src, 'mask', pol)
+                flux_side = Calc_Transmission(self.fields[0], self.fields[1],\
+                    self.fields[2], pol, 1, self.probes.pop('mask')[3], prb_[1])
+                print('probe:', prb_)
+                print('flux:', flux_side)
+                flux_tot += flux_side
+            flux_out.append(flux_tot)
+                
+        if plot:
+            cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
+                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
+                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+            cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
+            ax[len(src_names)].axes.xaxis.set_visible(False)
+            ax[len(src_names)].axes.yaxis.set_visible(False)
+            plt.savefig(savepath, dpi=1500)
+            plt.show()
+        
+        return flux_out
+    
+    
+    def Get_Trans_Denom(self, src_names, prb, opt = False, rho = None, savepath = 'none.pdf',\
+                    plasma = False, plot = True, wp_max = 0, gamma = 0,\
+                    uniform = True, bounds = []):
+        """
+        Simulate device given optimal parameters and evaluate the S-parameters
+        between two given source slices.
+        
+        Args:
+            rho: optimal parameters
+            src_names: names of sources in sources dictionary that will be active
+                      in the simulation.
+            denom: denominator for S-params
+            prb: [[np.array([[prb_loc_begin],[prb_loc_end]]), u_prb]]
+                u_prb: unit vector in direction of source propagation
+            savepath = save path
+            bounds: Upper and lower bounds for parameters
+            plasma: bool specifying if params map to wp
+            plot: bool determining if the plot is shown
+        """
+        if plot:
+            fig, ax = plt.subplots(1,len(src_names)+1,constrained_layout=False,\
+                                   figsize=(4.5*(len(src_names)+1),4))
+            
+        denoms = []
+        for i in range(len(src_names)):
+            if i > 0:
+                if src_names[i] != src_names[i-1]:
+                    self.Clear_fields()
+            w_src = self.sources[src_names[i]][1]*self.a/2/np.pi/c
+            pol = self.sources[src_names[i]][2]
+            w = self.sources[src_names[i]][1]
+            src = self.sources[src_names[i]][0]
+            
+            if not opt:
+                epsr_opt = self.epsr
+            else:
+                if plasma:
+                    epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
+                                                        uniform)
+                else:
+                    epsr_opt = self.Rho_Parameterization(rho, bounds)
+
+            if pol == 'hz':
+                #Calculate fields if needed
+                if self.fields == []:
+                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Ex, Ey, Hz = simulation.solve(src)
+                    self.fields = [Ex, Ey, Hz]
+                
+                #Plot magnitude of Poynting Vector if plot
+                if plot:
+                    Sp = Sp_mag(Sp_hz(self.fields[0], self.fields[1], self.fields[2]))
+                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
+                    cbar.set_ticks([])
+                    cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
+                    ax[i].axes.xaxis.set_visible(False)
+                    ax[i].axes.yaxis.set_visible(False)
+                    
+            elif pol == 'ez':
+                #Calculate fields if needed
+                if self.fields == []:
+                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    Hx, Hy, Ez = simulation.solve(src)
+                    self.fields = [Hx, Hy, Ez]
+                    
+                    #Plot magnitude of Poynting Vector if plot
+                if plot:
+                    Sp = Sp_mag(Sp_ez(self.fields[0], self.fields[1], self.fields[2]))
+                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
+                    cbar.set_ticks([])
+                    cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
+                    ax[i].axes.xaxis.set_visible(False)
+                    ax[i].axes.yaxis.set_visible(False)
+            else:
+                raise RuntimeError('The polarization associated with this source is\
+                               not valid.')
+                    
+            self.Add_Probe(prb[i][0][0,:], prb[i][0][1,:], w_src, 'mask', pol)
+            denoms.append(Calc_Transmission(self.fields[0], self.fields[1],\
+                    self.fields[2], pol, 1, self.probes.pop('mask')[3], prb[i][1]))
+                
+        if plot:
+            cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
+                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
+                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+            cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
+            ax[len(src_names)].axes.xaxis.set_visible(False)
+            ax[len(src_names)].axes.yaxis.set_visible(False)
+            plt.savefig(savepath, dpi=1500)
+            plt.show()
+        
+        return denoms
+    
 
     ###########################################################################
     ## Parameterization Functions
