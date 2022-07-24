@@ -2,15 +2,15 @@ import numpy as np
 from PMM.PMMInverse import PMMI
 import os
 
-a = 0.015
-res = 80
+a = 0.018
+res = 50
 nx = 20
 ny = 20
 dpml = 2
-b_o = 0.007/a
+b_o = 0.0075/a
 b_i = 0.0065/a
 output = os.getcwd()+'/../outputs'
-fname = '10by10straightwaveguide_ez_w025_wpmax035_gam1GHz_res75_coldstart'
+fname = '10by10straightwaveguide_ez_w025_wpmax035_gam1GHz_res50_coldstart'
 run_no = ['_r0','_r1']
 
 ## Set up domain geometry #####################################################
@@ -41,7 +41,7 @@ rho = PPC.Eps_to_Rho(epsr = rod_eps, plasma = True, w_src = w, wp_max = wpmax) #
 #Norms = PPC.Read_Params(output+'/params/'+fname+'_norms.csv')
 
 rho_opt, obj, E0, E0l = PPC.Optimize_Waveguide_Penalize(rho, 'src', 'prb', 'prbl',\
-               0.0001, 100, plasma = True, wp_max = wpmax, gamma = gamma, uniform = False,\
+               0.001, 100, plasma = True, wp_max = wpmax, gamma = gamma, uniform = False,\
                param_evolution = True, param_out = output+'/run_params')
 #               param_evolution = True, param_out = output+'/run_params',\
 #               E0 = Norms[0], E0l = Norms[1])

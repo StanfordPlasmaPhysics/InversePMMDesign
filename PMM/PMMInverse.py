@@ -1484,7 +1484,7 @@ class PMMI:
         """
         rho = rho.flatten()
         pmat = pmat.flatten()
-        denom = w_src**2 + 1j*gamma*w_src
+        denom = w_src**2 - 1j*gamma*w_src
         if wp_max > 0:
             rho = (wp_max/1.5)*npa.arctan(rho/(wp_max/7.5))
         if pmat.shape == rho.shape:
