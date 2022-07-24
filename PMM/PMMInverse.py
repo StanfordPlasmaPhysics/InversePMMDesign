@@ -1522,7 +1522,7 @@ class PMMI:
         """
         rho = rho.flatten()
         pmat = pmat.flatten()
-        denom = w_src**2 + 1j*gamma*w_src
+        denom = w_src**2 - 1j*gamma*w_src
         train_elem = self.train_elems[0].toarray()
         train_epsr = np.zeros(train_elem.shape)
         elem_locations = np.zeros(train_elem.shape)
