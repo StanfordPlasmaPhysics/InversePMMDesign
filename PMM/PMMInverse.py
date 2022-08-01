@@ -508,6 +508,9 @@ class PMMI:
         fig, ax = plt.subplots(1, len(src_names)+1, constrained_layout=False,\
                                figsize=(9*len(src_names),4))
         for i in range(len(src_names)):
+            if i > 0:
+                if src_names[i] != src_names[i-1]:
+                    self.Clear_fields()
             if self.sources[src_names[i]][2] == 'hz':
                 simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl, self.epsr,\
                             [self.Npml, self.Npml])
@@ -557,6 +560,9 @@ class PMMI:
                                    figsize=(4.5*len(src_names),3))
 
         for i in range(len(src_names)):
+            if i > 0:
+                if src_names[i] != src_names[i-1]:
+                    self.Clear_fields()
             if self.sources[src_names[i]][2] == 'hz':
                 if self.fields == []:
                     simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl,\
@@ -601,7 +607,7 @@ class PMMI:
 
     def Viz_Sim_abs_opt(self, rho, src_names, savepath, bounds = [], plasma = False,\
                         show = True, mult = False, wp_max = 0, gamma = 0, uniform = True,\
-                        perturb = 0):
+                        perturb = 0, amp = 1):
         """
         Solve and visualize an optimized simulation with certain sources active
         
@@ -615,6 +621,7 @@ class PMMI:
             mult: bool determining if multiple sources are activated at once
             perturb: sigma value for gaussian perturbation of rods. 0.05 would
                      result in random perturbations of each element of ~5%.
+            amp: turn up fields outside of input port
         """
         fig, ax = plt.subplots(1, len(src_names)+1, constrained_layout=False,\
                                figsize=(9*len(src_names),4))
@@ -624,6 +631,9 @@ class PMMI:
         else:
             pmat = np.empty(0)
         for i in range(len(src_names)):
+            if i > 0:
+                if src_names[i] != src_names[i-1]:
+                    self.Clear_fields()
             if mult:
                 w_src = self.sources[src_names[i][0]][1]*self.a/2/np.pi/c
                 pol = self.sources[src_names[i][0]][2]
@@ -648,8 +658,11 @@ class PMMI:
                     simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
                     Ex, Ey, Hz = simulation.solve(src)
                     self.fields = [Ex, Ey, Hz]
-
-                cbar = plt.colorbar(ax[i].imshow(np.abs(self.fields[2].T), cmap='magma'), ax=ax[i])
+                
+                max_field = np.max(np.abs(self.fields[2]))
+                cbar = plt.colorbar(ax[i].imshow(amp*np.abs(self.fields[2].T), cmap='magma',\
+                                    vmin = np.min(amp*np.abs(self.fields[2])),\
+                                    vmax = max_field), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('H-Field Magnitude', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
@@ -660,7 +673,10 @@ class PMMI:
                     Hx, Hy, Ez = simulation.solve(src)
                     self.fields = [Hx, Hy, Ez]
 
-                cbar = plt.colorbar(ax[i].imshow(np.abs(self.fields[2].T), cmap='magma'), ax=ax[i])
+                max_field = np.max(np.abs(self.fields[2]))
+                cbar = plt.colorbar(ax[i].imshow(amp*np.abs(self.fields[2].T), cmap='magma',\
+                                    vmin = np.min(amp*np.abs(self.fields[2])),\
+                                    vmax = max_field), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('E-Field Magnitude', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
@@ -789,6 +805,9 @@ class PMMI:
         else:
             pmat = np.empty(1)
         for i in range(len(src_names)):
+            if i > 0:
+                if src_names[i] != src_names[i-1]:
+                    self.Clear_fields()
             if mult:
                 w_src = self.sources[src_names[i][0]][1]*self.a/2/np.pi/c
                 pol = self.sources[src_names[i][0]][2]
@@ -874,6 +893,9 @@ class PMMI:
         else:
             pmat = np.empty(1)
         for i in range(len(src_names)):
+            if i > 0:
+                if src_names[i] != src_names[i-1]:
+                    self.Clear_fields()
             if mult:
                 w_src = self.sources[src_names[i][0]][1]*self.a/2/np.pi/c
                 pol = self.sources[src_names[i][0]][2]
@@ -1678,6 +1700,13 @@ class PMMI:
         Convert dimensionalized collision frequency to non-dim freq using a
         """
         return gamma_Hz/(c/self.a)
+    
+    
+    def f_Hz(self, F_a):
+        """
+        Convert non-dimensionalized frequency to dim freq using a
+        """
+        return F_a*(c/self.a)
 
 
     def Get_MP_Norms(self, Rho, src_1, src_2, prb_1, prb_2, bounds = [],\
@@ -2186,7 +2215,7 @@ class PMMI:
 
             return (mode_overlap(E1, self.probes[prb_1][0])/E01)*\
                     (mode_overlap(E2, self.probes[prb_2][0])/E02)-\
-                    (field_mag_int(E1, self.probes[prb_2][3])/E01l)*\
+                    (field_mag_int(E1, self.probes[prb_2][3])/E01l)-\
                     (field_mag_int(E2, self.probes[prb_1][3])/E02l)
 
         # Compute the gradient of the objective function
