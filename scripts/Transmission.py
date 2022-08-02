@@ -3,44 +3,48 @@ from PMM.PMMInverse import PMMI
 import os
 
 a = 0.018
-res = 75
+res = 50
 nx = 20
 ny = 20
 dpml = 2
 b_o = 0.0075/a
 b_i = 0.0065/a
 output = os.getcwd()+'/../outputs'
-fname = 'WaveguideOpt_res75'
+fname = 'WaveguideOpt_res50'
 
 ## Set up domain geometry #####################################################
 PPC = PMMI(a, res, nx, ny, dpml) #Initialize PMMI object
 w = 0.25 #Source frequency
 wpmax = 0.35
-gamma = -PPC.gamma(1e9)
+gamma = PPC.gamma(1e9)
 
-PPC.Add_Block((0, 8.5), (20, 0.5), -1000.0) #Add entrance wvg
-PPC.Add_Block((0, 11), (20, 0.5), -1000.0) #Add entrance wvg
+PPC.Add_Block((0, 8.5), (5, 0.5), -1000.0) #Add entrance wvg
+PPC.Add_Block((0, 11), (5, 0.5), -1000.0) #Add entrance wvg
 
 PPC.Add_Source(np.array([3,9]), np.array([3,11]), w, 'src', 'ez')
-PPC.Add_Source(np.array([10,9]), np.array([10,11]), w, 'src_cen', 'ez')
 
-s11 = [[np.array([[3.1,9],[3.1,11]]),np.array([1,0,0])]]
-s11_tot = [[[np.array([[3.0,9],[3.0,11]]),np.array([1,0,0])],[np.array([[3.01,9],[3.01,11]]),np.array([1,0,0])]]]
-s11_cen = [[np.array([[10,9],[10,11]]),np.array([0,1,0])]]
-s11_cen2 = [[np.array([[10,9],[10,11]]),np.array([1,0,0])]]
-s11_cen3 = [[np.array([[0,8.4],[20,8.4]]),np.array([0,1,0])]]
-s11_cen4 = [[np.array([[0,11.6],[20,11.6]]),np.array([0,1,0])]]
-s11_cen_tot = [[[np.array([[10.1,9],[10.1,11]]),np.array([1,0,0])],[np.array([[9.9,9],[9.9,11]]),np.array([-1,0,0])]]]
+src_right = [[np.array([[3.025,9],[3.025,11]]),np.array([1,0,0])]]
+src_left = [[np.array([[3,9],[3,11]]),np.array([1,0,0])]]
+src_exit = [[np.array([[5.025,9],[5.025,11]]),np.array([1,0,0])]]
+crys_right = [[np.array([[15,5],[15,15]]),np.array([1,0,0])]]
+crys_left = [[np.array([[5,5],[5,15]]),np.array([1,0,0])]]
+crys_top = [[np.array([[5,15],[15,15]]),np.array([0,1,0])]]
+crys_bot = [[np.array([[5,5],[15,5]]),np.array([0,1,0])]]
 
-# denom = PPC.Get_Trans_Denom(['src_cen'], s11_cen, savepath = output+'/plots/SParam_denom.pdf')
-# denom2 = PPC.Get_Trans_Denom(['src_cen'], s11_cen2, plot = False, savepath = output+'/plots/SParam_denom.pdf')
-# denom3 = PPC.Get_Trans_Denom(['src_cen'], s11_cen3, plot = False, savepath = output+'/plots/SParam_denom.pdf')
-# denom4 = PPC.Get_Trans_Denom(['src_cen'], s11_cen4, plot = False, savepath = output+'/plots/SParam_denom.pdf')
-# Total_Flux = PPC.Get_Total_Flux(['src_cen'], s11_cen_tot, plot = False)
-# PPC.Viz_Sim_Fields(['src_cen'], output+'/plots/SParam_denom_fields.pdf', perm = True)
+s21 = [[np.array([[17,9],[17,11]]),np.array([1,0,0])]]
+s31 = [[np.array([[9,17],[11,17]]),np.array([0,1,0])]]
+
+# right_nc = PPC.Get_Trans_Denom(['src'], src_right, plot = True, savepath = output+'/plots/SParam_denom.pdf')
+# left_nc = PPC.Get_Trans_Denom(['src'], src_left, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+# exit_nc = PPC.Get_Trans_Denom(['src'], src_exit, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+
+# print('no crystal left:', left_nc)
+# print('no crystal right:', right_nc)
+# print('no crystal exit:', exit_nc)
+# print('no crystal insertion loss: ', -(1-exit_nc/((right_nc[0]-left_nc[0])/2)))
+# print('no crystal insertion loss (dB):', 10*np.log10(exit_nc/((right_nc[0]-left_nc[0])/2)))
+
 # PPC.Clear_fields()
-
-# print('denom:', denom, denom2, denom3, denom4)
 
 PPC.Add_Block_static((0, 8.5), (5, 0.5), -1000.0) #Add entrance wvg
 PPC.Add_Block_static((0, 11), (5, 0.5), -1000.0) #Add entrance wvg
@@ -53,32 +57,34 @@ PPC.Rod_Array_train(b_i, (5.5, 5.5), (10, 10), bulbs = True,\
                     d_bulb = (b_i, b_o), eps_bulb = 3.8, uniform = False) #Rod ppc array
 
 ## Set up Sources and Sim #####################################################
-s21 = [[[np.array([[17,9],[17,11]]), np.array([1,0,0])],[np.array([[9,17],[11,17]]), np.array([0,1,0])]]]
-prb = [[np.array([[17,9],[17,11]]), np.array([0,1,0])]]
-
-rho = PPC.Read_Params(output+'/params/10by10straightwaveguide_ez_w025_wpmax035_gam1GHz_res75_idealstart_r8.csv')
-Total_Flux_crystal = PPC.Get_Total_Flux(['src'], s11_tot, opt = True, rho = rho, plasma = True,\
+rho = PPC.Read_Params(output+'/params/10by10bentwaveguide_ez_w025_wpmax042_gam1GHz_res50_coldstart_r5.csv')
+right = PPC.Get_Trans_Denom(['src'], src_right, opt = True, rho = rho, plasma = True,\
                                 plot = True, wp_max = wpmax, gamma = gamma,\
-                                uniform = False)
-# Left = PPC.Get_Trans_Denom(['src'], [s11_tot[0][0]],  plot = False, savepath = output+'/plots/SParam_denom.pdf')
-# Right = PPC.Get_Trans_Denom(['src'], [s11_tot[0][1]], plot = False, savepath = output+'/plots/SParam_denom.pdf')
-F_out_Right = PPC.Get_Trans_Denom(['src'], [[np.array([[15,5],[15,15]]), np.array([1,0,0])]], plot = False, savepath = output+'/plots/SParam_denom.pdf')
-F_out_Left = PPC.Get_Trans_Denom(['src'], [[np.array([[5,5],[5,15]]), np.array([-1,0,0])]], plot = False, savepath = output+'/plots/SParam_denom.pdf')
-F_out_Top = PPC.Get_Trans_Denom(['src'], [[np.array([[5,15],[15,15]]), np.array([0,1,0])]], plot = False, savepath = output+'/plots/SParam_denom.pdf')
-F_out_Bot = PPC.Get_Trans_Denom(['src'], [[np.array([[5,5],[15,5]]), np.array([0,-1,0])]], plot = False, savepath = output+'/plots/SParam_denom.pdf')
-print(F_out_Right)
-print(F_out_Left)
-print(F_out_Top)
-print(F_out_Bot)
-# PPC.Calc_SParams_opt(rho, ['src'], denom, s11, s21, output+'/plots/'+fname+'.pdf',\
-#                     plasma = True, plot = True, wp_max = wpmax, gamma = gamma,\
-#                     uniform = False)
+                                uniform = False, savepath = output+'/plots/SParam_denom.pdf')
+left = PPC.Get_Trans_Denom(['src'], src_left, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+exit_ = PPC.Get_Trans_Denom(['src'], src_exit, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+c_right = PPC.Get_Trans_Denom(['src'], crys_right, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+c_left = PPC.Get_Trans_Denom(['src'], crys_left, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+c_top = PPC.Get_Trans_Denom(['src'], crys_top, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+c_bot = PPC.Get_Trans_Denom(['src'], crys_bot, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+s2 = PPC.Get_Trans_Denom(['src'], s21, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+s3 = PPC.Get_Trans_Denom(['src'], s31, plot = False, savepath = output+'/plots/SParam_denom.pdf')
 
-# PPC.Viz_Sim_Poynting_opt(rho, u_s, ['src'], output+'/plots/'+fname+'.pdf', plasma = True,\
-#                          show = True, mult = False, wp_max = wpmax, gamma = gamma, uniform = False)
-# PPC.Viz_Sim_abs_opt(rho, ['src'], output+'/plots/'+fname+'.pdf', plasma = True,\
-#                             show = True, mult = False, wp_max = wpmax, gamma = gamma, uniform = False,\
-#                             perturb = 0)
+print('left:', left)
+print('right:', right)
+print('exit:', exit_)
+print('insertion loss: ', -(1-exit_[0]/((right[0]-left[0])/2)))
+print('insertion loss (dB):', 10*np.log10(exit_[0]/((right[0]-left[0])/2)))
+print('crystal top:', c_top)
+print('crystal bottom:', c_bot)
+print('crystal left:', c_left)
+print('crystal right:', c_right)
+print('loss to crystal:', (c_top[0]-c_bot[0]+c_right[0]-c_left[0])/((right[0]-left[0])/2))
+print('transmission 2:', s2)
+print('transmission 3:', s3)
+print('S11:', 10*np.log10((((right[0]-left[0])/2)-right[0])/((right[0]-left[0])/2)))
+print('S21:', 10*np.log10(s2[0]/((right[0]-left[0])/2)))
+print('S31:', 10*np.log10(s3[0]/((right[0]-left[0])/2)))
+print('S21 neglecting insertion loss:', 10*np.log10(s2[0]/exit_))
+print('S31 neglecting insertion loss:', 10*np.log10(s3[0]/exit_))
 
-#PPC.Add_Source(src_start, src_end, 0.1, 'src', 'ez')
-#PPC.Viz_Sim_Poynting(['src'], uhat, output+'/plots/'+fname+'_fields.pdf', perm = True)
