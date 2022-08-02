@@ -709,6 +709,9 @@ class PMMI:
                                    figsize=(8*len(src_names),2))
 
             for i in range(len(src_names)):
+                if i > 0:
+                    if src_names[i] != src_names[i-1]:
+                        self.Clear_fields()
                 if self.sources[src_names[i]][2] == 'hz':
                     simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl, self.epsr,\
                                 [self.Npml, self.Npml])
@@ -1147,6 +1150,9 @@ class PMMI:
             
         S = []
         for i in range(len(src_names)):
+            if i > 0:
+                if src_names[i] != src_names[i-1]:
+                    self.Clear_fields()
             w_src = self.sources[src_names[i]][1]*self.a/2/np.pi/c
             pol = self.sources[src_names[i]][2]
             w = self.sources[src_names[i]][1]
