@@ -25,6 +25,8 @@ from ceviche.modes import insert_mode
 import collections
 from functools import partial
 from scipy.sparse import csr_matrix
+import os
+os.environ["KMP_WARNINGS"] = "FALSE"
 
 
 ###############################################################################
