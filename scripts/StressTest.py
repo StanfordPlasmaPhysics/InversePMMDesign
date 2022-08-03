@@ -10,8 +10,8 @@ dpml = 2
 b_o = 0.0075/a
 b_i = 0.0065/a
 output = os.getcwd()+'/../outputs'
-fname = '10by10bentwaveguide_ez_w025_wpmax042_gam1GHz_res50_idealstart'
-run_no = ['_r2']
+fname = '10by10straightwaveguide_ez_w025_wpmax042_gam1GHz_res50_idealstart'
+run_no = ['_r4']
 
 ## Set up domain geometry #####################################################
 PPC = PMMI(a, res, nx, ny, dpml) #Initialize PMMI object
@@ -46,11 +46,13 @@ PPC.Add_Source(np.array([3,9]), np.array([3,11]), w, 'src', 'ez')
 rho_opt = PPC.Read_Params(output+'/params/'+fname+run_no[0]+'.csv')
 
 ## Perturb and Visualize #####################################################
-p = 0.1
+p = 0.39
 
 PPC.Params_to_Exp(rho = rho_opt, src = 'src', plasma = True, wp_max = wpmax)
-abs3 = 0.21495753756060715
-abs2 = 0.005404930537378098
+abs3 = 3.2828171776367685e-06
+abs2 = 0.3270325521199765
+av3 = 0
+av2 = 0
 for i in range(10):
     PPC.Viz_Sim_abs_opt(rho_opt, ['src'], output+'/plots/'+fname+'_Pert_'\
         +str(p)+'_r'+str(i)+'.pdf', plasma = True, wp_max = wpmax,\
@@ -64,7 +66,8 @@ for i in range(10):
     c_bot = PPC.Get_Trans_Denom(['src'], crys_bot, plot = False, savepath = output+'/plots/SParam_denom.pdf')
     s2 = PPC.Get_Trans_Denom(['src'], s21, plot = False, savepath = output+'/plots/SParam_denom.pdf')
     s3 = PPC.Get_Trans_Denom(['src'], s31, plot = False, savepath = output+'/plots/SParam_denom.pdf')
-    
+
+    print('--------------------------------------------------------------------------------')  
     print('Perturbation p = '+str(p)+', run #'+str(i+1)+':')
     print('insertion loss: ', -(1-exit_[0]/((right[0]-left[0])/2)))
     print('insertion loss (dB):', 10*np.log10(exit_[0]/((right[0]-left[0])/2)))
@@ -75,10 +78,14 @@ for i in range(10):
     print('Abs. Trans. 2:', s2[0]/((right[0]-left[0])/2))
     print('Abs. Trans. 3:', s3[0]/((right[0]-left[0])/2))
     print('Change in Abs. Trans. 2:', (s2[0]/((right[0]-left[0])/2))/abs2-1)
+    av2 += (s2[0]/((right[0]-left[0])/2))/abs2-1
     print('Change in Abs. Trans. 3:', (s3[0]/((right[0]-left[0])/2))/abs3-1)
+    av3 += (s3[0]/((right[0]-left[0])/2))/abs3-1
     print('S21 neglecting insertion loss:', 10*np.log10(s2[0]/exit_))
     print('S31 neglecting insertion loss:', 10*np.log10(s3[0]/exit_))
     print('--------------------------------------------------------------------------------')
-    print('--------------------------------------------------------------------------------')  
 
     PPC.Clear_fields()
+    
+print('Average change in Abs. Trans. 2:', av2/10)
+print('Average change in Abs. Trans. 3:', av3/10)
