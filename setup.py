@@ -15,5 +15,8 @@ setup(name="PMM",
           'pyMKL',
           'ceviche',
           'scikit-image',
+          'minimalmodbus',
+          'pyserial',
+          'serial',
           ]
       )

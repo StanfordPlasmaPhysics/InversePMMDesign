@@ -5,3 +5,6 @@ autograd>=1.2
 pyMKL>=0.0.3
 ceviche>=0.0.2
 scikit-image>=0.15.0
+pyserial>=3.5
+minimalmodbus>=2.0.1
+serial>=0.0.97
