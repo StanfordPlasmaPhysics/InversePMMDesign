@@ -1,44 +1,91 @@
 import numpy as np
 from PMM.PMMInverse import PMMI
+import os
 
-a = 0.015
-res = 30
+a = 0.018
+res = 50
 nx = 20
 ny = 20
 dpml = 2
-
+b_o = 0.0075/a
+b_i = 0.0065/a
+output = os.getcwd()+'/../outputs'
+fname = '10by10straightwaveguide_ez_w025_wpmax042_gam1GHz_res50_idealstart'
+run_no = ['_r4']
 
 ## Set up domain geometry #####################################################
 PPC = PMMI(a, res, nx, ny, dpml) #Initialize PMMI object
-PPC.Add_Block_static((15, 8.5), (5, 0.5), -1000.0) #Add true wvg
-PPC.Add_Block_static((15, 11), (5, 0.5), -1000.0) #Add true wvg
-PPC.Add_Block_static((8.5, 0), (0.5, 5), -1000.0) #Not true wvg
-PPC.Add_Block_static((11, 0), (0.5, 5), -1000.0) #Not true wvg
-PPC.Add_Block_static((0, 5.5), (5, 0.5), -1000.0) #Bottom entrance wvg
-PPC.Add_Block_static((0, 8), (5, 0.5), -1000.0) #Bottom entrance wvg
-PPC.Add_Block_static((0, 11.5), (5, 0.5), -1000.0) #Top entrance wvg
-PPC.Add_Block_static((0, 14), (5, 0.5), -1000.0) #Top entrance wvg
-PPC.Add_Block_static((8.5, 15), (0.5, 5), -1000.0) #Continuous src wvg
-PPC.Add_Block_static((11, 15), (0.5, 5), -1000.0) #Continuous src wvg
+PPC.Add_Block_static((0, 8.5), (5, 0.5), -1000.0) #Add entrance wvg
+PPC.Add_Block_static((0, 11), (5, 0.5), -1000.0) #Add entrance wvg
+PPC.Add_Block_static((15, 8.5), (5, 0.5), -1000.0) #Right exit wvg
+PPC.Add_Block_static((15, 11), (5, 0.5), -1000.0) #Right exit wvg
+PPC.Add_Block_static((8.5, 15), (0.5, 5), -1000.0) #Top exit wvg
+PPC.Add_Block_static((11, 15), (0.5, 5), -1000.0) #Top exit wvg
 PPC.Design_Region((5, 5), (10, 10)) #Specify Region where elements are being optimized
-PPC.Rod_Array_train(0.433, (5.5, 5.5), (10, 10)) #Rod ppc array
+PPC.Rod_Array_train(b_i, (5.5, 5.5), (10, 10), bulbs = True,\
+                    d_bulb = (b_i, b_o), eps_bulb = 3.8, uniform = False) #Rod ppc array
 
 
 ## Set up Sources and Sim #####################################################
-w = 2.0 #Source frequency
+w = 0.25 #Source frequency
+wpmax = 0.42
+gamma = PPC.gamma(1e9)
 
-PPC.Add_Source(np.array([3,6]), np.array([3,8]), w, 'src_1', 'ez')
-PPC.Add_Source(np.array([3,12]), np.array([3,14]), w, 'src_2', 'ez')
-PPC.Add_Source(np.array([9,17]), np.array([11,17]), w, 'src_c', 'ez')
+src_right = [[np.array([[3.025,9],[3.025,11]]),np.array([1,0,0])]]
+src_left = [[np.array([[3,9],[3,11]]),np.array([1,0,0])]]
+src_exit = [[np.array([[5.025,9],[5.025,11]]),np.array([1,0,0])]]
+crys_right = [[np.array([[15,5],[15,15]]),np.array([1,0,0])]]
+crys_left = [[np.array([[5,5],[5,15]]),np.array([1,0,0])]]
+crys_top = [[np.array([[5,15],[15,15]]),np.array([0,1,0])]]
+crys_bot = [[np.array([[5,5],[15,5]]),np.array([0,1,0])]]
+s21 = [[np.array([[17,9],[17,11]]),np.array([1,0,0])]]
+s31 = [[np.array([[9,17],[11,17]]),np.array([0,1,0])]]
 
-rho_opt = PPC.Read_Params('params/10by10logic_or_ez_w2_wp_pen_4_3_1_1p5_1_1p5_1_1.csv') #Optimal Parameters
+PPC.Add_Source(np.array([3,9]), np.array([3,11]), w, 'src', 'ez')
+
+rho_opt = PPC.Read_Params(output+'/params/'+fname+run_no[0]+'.csv')
 
 ## Perturb and Visualize #####################################################
-p = 0
+p = 0.39
 
-print(PPC.Rho_to_Eps(rho = rho_opt, plasma = True, w_src = w))
-PPC.Params_to_Exp(rho = rho_opt, src = 'src_1', plasma = True)
+PPC.Params_to_Exp(rho = rho_opt, src = 'src', plasma = True, wp_max = wpmax)
+abs3 = 3.2828171776367685e-06
+abs2 = 0.3270325521199765
+av3 = 0
+av2 = 0
 for i in range(10):
-    PPC.Viz_Sim_abs_opt(rho_opt, [['src_c'], ['src_c', 'src_1'], ['src_c','src_2'],\
-        ['src_c', 'src_1', 'src_2']], 'plots/10by10Logic_Or_Ez_w2_wp_pen_Pert_'\
-        +str(p)+'_r'+str(i)+'.pdf', plasma = True, mult = True, perturb = p)
+    PPC.Viz_Sim_abs_opt(rho_opt, ['src'], output+'/plots/'+fname+'_Pert_'\
+        +str(p)+'_r'+str(i)+'.pdf', plasma = True, wp_max = wpmax,\
+            uniform = False, gamma = gamma, perturb = p, amp = 1.4)
+    right = PPC.Get_Trans_Denom(['src'], src_right, plot = True, savepath = output+'/plots/'+fname+'SParam_Pert_'+str(p)+'_r'+str(i)+'.pdf')
+    left = PPC.Get_Trans_Denom(['src'], src_left, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+    exit_ = PPC.Get_Trans_Denom(['src'], src_exit, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+    c_right = PPC.Get_Trans_Denom(['src'], crys_right, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+    c_left = PPC.Get_Trans_Denom(['src'], crys_left, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+    c_top = PPC.Get_Trans_Denom(['src'], crys_top, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+    c_bot = PPC.Get_Trans_Denom(['src'], crys_bot, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+    s2 = PPC.Get_Trans_Denom(['src'], s21, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+    s3 = PPC.Get_Trans_Denom(['src'], s31, plot = False, savepath = output+'/plots/SParam_denom.pdf')
+
+    print('--------------------------------------------------------------------------------')  
+    print('Perturbation p = '+str(p)+', run #'+str(i+1)+':')
+    print('insertion loss: ', -(1-exit_[0]/((right[0]-left[0])/2)))
+    print('insertion loss (dB):', 10*np.log10(exit_[0]/((right[0]-left[0])/2)))
+    print('loss to crystal:', (c_top[0]-c_bot[0]+c_right[0]-c_left[0])/((right[0]-left[0])/2))
+    print('S11:', 10*np.log10((((right[0]-left[0])/2)-right[0])/((right[0]-left[0])/2)))
+    print('S21:', 10*np.log10(s2[0]/((right[0]-left[0])/2)))
+    print('S31:', 10*np.log10(s3[0]/((right[0]-left[0])/2)))
+    print('Abs. Trans. 2:', s2[0]/((right[0]-left[0])/2))
+    print('Abs. Trans. 3:', s3[0]/((right[0]-left[0])/2))
+    print('Change in Abs. Trans. 2:', (s2[0]/((right[0]-left[0])/2))/abs2-1)
+    av2 += (s2[0]/((right[0]-left[0])/2))/abs2-1
+    print('Change in Abs. Trans. 3:', (s3[0]/((right[0]-left[0])/2))/abs3-1)
+    av3 += (s3[0]/((right[0]-left[0])/2))/abs3-1
+    print('S21 neglecting insertion loss:', 10*np.log10(s2[0]/exit_))
+    print('S31 neglecting insertion loss:', 10*np.log10(s3[0]/exit_))
+    print('--------------------------------------------------------------------------------')
+
+    PPC.Clear_fields()
+    
+print('Average change in Abs. Trans. 2:', av2/10)
+print('Average change in Abs. Trans. 3:', av3/10)
