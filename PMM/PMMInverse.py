@@ -17,7 +17,7 @@ font = 18
 plt.rc('xtick', labelsize=font)
 plt.rc('ytick', labelsize=font)
 from autograd.scipy.signal import convolve as conv
-from skimage.draw import disk, rectangle
+from skimage.draw import disk, rectangle, polygon
 import ceviche
 from ceviche import fdfd_ez, jacobian, fdfd_hz
 from ceviche.optimizers import adam_optimize
@@ -349,6 +349,80 @@ class PMMI:
         rr, cc = rectangle((X, Y), extent = (W, H), shape = self.epsr.shape)
 
         self.static_elems[rr, cc] = eps
+
+
+    def Add_INFOMW_Horn_TM(self, xy_open_cen, horn_dir, total_length,\
+                           pol = 'TM', eps=-1000):
+        """
+        Add a microwave horn that matches our experimental facilities, in the
+        TM orientation.
+
+        Args:
+            xy_open_cen: The location of the center of the aperture of the 
+                         horn
+            horn_dir: magnitude-1 vector giving horn direction
+            total_length: how long the entire horn is including entrance wvg
+            eps: relative permittivity
+        """
+        horn_dir_orth = np.array([horn_dir[1], -horn_dir[0]])
+        
+        if pol == 'TM':
+            wall_thickness = 0.004/self.a
+            width_open = 0.104/self.a
+            width_base = 0.048/self.a
+            depth = 0.089/self.a
+            entrance_length = total_length - depth
+        else:
+            wall_thickness = 0.004/self.a
+            width_open = 0.078/self.a
+            width_base = 0.043/self.a
+            depth = 0.089/self.a
+            entrance_length = total_length - depth
+
+
+        left_open = np.array([xy_open_cen + horn_dir_orth*width_open,\
+            xy_open_cen + horn_dir_orth*(width_open-wall_thickness),\
+            xy_open_cen + horn_dir_orth*(width_base-wall_thickness) -\
+                horn_dir*depth,\
+            xy_open_cen + horn_dir_orth*width_base - horn_dir*depth])
+
+        left_entrance = np.array([xy_open_cen + horn_dir_orth*\
+                (width_base-wall_thickness) - horn_dir*depth,\
+            xy_open_cen + horn_dir_orth*width_base - horn_dir*depth,\
+            xy_open_cen + horn_dir_orth*width_base - horn_dir*(depth +\
+                entrance_length),\
+            xy_open_cen + horn_dir_orth*(width_base-wall_thickness) -\
+                horn_dir*(depth+entrance_length)])
+
+        right_open = np.array([xy_open_cen - horn_dir_orth*width_open,\
+            xy_open_cen - horn_dir_orth*(width_open-wall_thickness),\
+            xy_open_cen - horn_dir_orth*(width_base-wall_thickness) -\
+                horn_dir*depth,\
+            xy_open_cen - horn_dir_orth*width_base - horn_dir*depth])
+
+        right_entrance = np.array([xy_open_cen - horn_dir_orth*\
+                (width_base-wall_thickness) - horn_dir*depth,\
+            xy_open_cen - horn_dir_orth*width_base - horn_dir*depth,\
+            xy_open_cen - horn_dir_orth*width_base - horn_dir*(depth +\
+                entrance_length),\
+            xy_open_cen - horn_dir_orth*(width_base-wall_thickness) -\
+                horn_dir*(depth+entrance_length)])
+
+        for i in range(4):
+            for j in range(2):
+                left_open[i,j] = int(round(left_open[i,j]*self.res))
+                right_open[i,j] = int(round(right_open[i,j]*self.res))
+                left_entrance[i,j] = int(round(left_entrance[i,j]*self.res))
+                right_entrance[i,j] = int(round(right_entrance[i,j]*self.res))
+
+        lor, loc = polygon(left_open[:,0], left_open[:,1], shape = self.epsr.shape)
+        self.static_elems[lor,loc] = eps
+        ror, roc = polygon(right_open[:,0], right_open[:,1], shape = self.epsr.shape)
+        self.static_elems[ror,roc] =eps
+        ler, lec = polygon(left_entrance[:,0], left_entrance[:,1], shape = self.epsr.shape)
+        self.static_elems[ler,lec] = eps
+        rer, rec = polygon(right_entrance[:,0], right_entrance[:,1], shape = self.epsr.shape)
+        self.static_elems[rer,rec] = eps
 
 
     def Add_Source(self, xy_begin, xy_end, w, src_name, pol):
