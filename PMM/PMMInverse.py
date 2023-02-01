@@ -351,7 +351,7 @@ class PMMI:
         self.static_elems[rr, cc] = eps
 
 
-    def Add_INFOMW_Horn_TM(self, xy_open_cen, horn_dir, total_length,\
+    def Add_INFOMW_Horn(self, xy_open_cen, horn_dir, total_length,\
                            pol = 'TM', eps=-1000):
         """
         Add a microwave horn that matches our experimental facilities, in the
