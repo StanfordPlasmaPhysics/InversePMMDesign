@@ -17,7 +17,7 @@ font = 18
 plt.rc('xtick', labelsize=font)
 plt.rc('ytick', labelsize=font)
 from autograd.scipy.signal import convolve as conv
-from skimage.draw import disk, rectangle, polygon
+from skimage.draw import disk, rectangle, polygon, line_aa
 import ceviche
 from ceviche import fdfd_ez, jacobian, fdfd_hz
 from ceviche.optimizers import adam_optimize
@@ -380,32 +380,32 @@ class PMMI:
             entrance_length = total_length - depth
 
 
-        left_open = np.array([xy_open_cen + horn_dir_orth*width_open,\
-            xy_open_cen + horn_dir_orth*(width_open-wall_thickness),\
-            xy_open_cen + horn_dir_orth*(width_base-wall_thickness) -\
+        left_open = np.array([xy_open_cen + horn_dir_orth*width_open/2,\
+            xy_open_cen + horn_dir_orth*(width_open/2-wall_thickness),\
+            xy_open_cen + horn_dir_orth*(width_base/2-wall_thickness) -\
                 horn_dir*depth,\
-            xy_open_cen + horn_dir_orth*width_base - horn_dir*depth])
+            xy_open_cen + horn_dir_orth*width_base/2 - horn_dir*depth])
 
         left_entrance = np.array([xy_open_cen + horn_dir_orth*\
-                (width_base-wall_thickness) - horn_dir*depth,\
-            xy_open_cen + horn_dir_orth*width_base - horn_dir*depth,\
-            xy_open_cen + horn_dir_orth*width_base - horn_dir*(depth +\
+                (width_base/2-wall_thickness) - horn_dir*depth,\
+            xy_open_cen + horn_dir_orth*width_base/2 - horn_dir*depth,\
+            xy_open_cen + horn_dir_orth*width_base/2 - horn_dir*(depth +\
                 entrance_length),\
-            xy_open_cen + horn_dir_orth*(width_base-wall_thickness) -\
+            xy_open_cen + horn_dir_orth*(width_base/2-wall_thickness) -\
                 horn_dir*(depth+entrance_length)])
 
-        right_open = np.array([xy_open_cen - horn_dir_orth*width_open,\
-            xy_open_cen - horn_dir_orth*(width_open-wall_thickness),\
-            xy_open_cen - horn_dir_orth*(width_base-wall_thickness) -\
+        right_open = np.array([xy_open_cen - horn_dir_orth*width_open/2,\
+            xy_open_cen - horn_dir_orth*(width_open/2-wall_thickness),\
+            xy_open_cen - horn_dir_orth*(width_base/2-wall_thickness) -\
                 horn_dir*depth,\
-            xy_open_cen - horn_dir_orth*width_base - horn_dir*depth])
+            xy_open_cen - horn_dir_orth*width_base/2 - horn_dir*depth])
 
         right_entrance = np.array([xy_open_cen - horn_dir_orth*\
-                (width_base-wall_thickness) - horn_dir*depth,\
-            xy_open_cen - horn_dir_orth*width_base - horn_dir*depth,\
-            xy_open_cen - horn_dir_orth*width_base - horn_dir*(depth +\
+                (width_base/2-wall_thickness) - horn_dir*depth,\
+            xy_open_cen - horn_dir_orth*width_base/2 - horn_dir*depth,\
+            xy_open_cen - horn_dir_orth*width_base/2 - horn_dir*(depth +\
                 entrance_length),\
-            xy_open_cen - horn_dir_orth*(width_base-wall_thickness) -\
+            xy_open_cen - horn_dir_orth*(width_base/2-wall_thickness) -\
                 horn_dir*(depth+entrance_length)])
 
         for i in range(4):
@@ -415,13 +415,21 @@ class PMMI:
                 left_entrance[i,j] = int(round(left_entrance[i,j]*self.res))
                 right_entrance[i,j] = int(round(right_entrance[i,j]*self.res))
 
-        lor, loc = polygon(left_open[:,0], left_open[:,1], shape = self.epsr.shape)
+        lor, loc = polygon(np.clip(left_open[:,0],0,self.epsr.shape[0]),\
+                           np.clip(left_open[:,1],0,self.epsr.shape[1]),\
+                           shape = self.epsr.shape)
         self.static_elems[lor,loc] = eps
-        ror, roc = polygon(right_open[:,0], right_open[:,1], shape = self.epsr.shape)
+        ror, roc = polygon(np.clip(right_open[:,0],0,self.epsr.shape[0]),\
+                           np.clip(right_open[:,1],0,self.epsr.shape[1]),\
+                           shape = self.epsr.shape)
         self.static_elems[ror,roc] =eps
-        ler, lec = polygon(left_entrance[:,0], left_entrance[:,1], shape = self.epsr.shape)
+        ler, lec = polygon(np.clip(left_entrance[:,0],0,self.epsr.shape[0]),\
+                           np.clip(left_entrance[:,1],0,self.epsr.shape[1]),\
+                           shape = self.epsr.shape)
         self.static_elems[ler,lec] = eps
-        rer, rec = polygon(right_entrance[:,0], right_entrance[:,1], shape = self.epsr.shape)
+        rer, rec = polygon(np.clip(right_entrance[:,0],0,self.epsr.shape[0]),\
+                           np.clip(right_entrance[:,1],0,self.epsr.shape[1]),\
+                           shape = self.epsr.shape)
         self.static_elems[rer,rec] = eps
 
 
@@ -445,15 +453,22 @@ class PMMI:
             src_x = (np.arange(XY_beg[0], XY_end[0])).astype(int)
             src_y = XY_beg[1]*np.ones(src_x.shape, dtype=int)
         else:
-            raise RuntimeError("Source needs to be 1-D")
+            src_x, src_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
+            #raise RuntimeError("Source needs to be 1-D")
 
         omega = 2*np.pi*w*c/self.a
-        src = insert_mode(omega, self.dl, src_x, src_y, self.epsr, m = 1)
         mask = np.zeros((self.Nx, self.Ny))
         for i in range(len(src_x)):
             mask[src_x[i], src_y[i]] = 1
 
-        self.sources[src_name] = (src, omega, pol, mask)
+        try:
+            src = insert_mode(omega, self.dl, src_x, src_y, self.epsr, m = 1)
+        except Exception as e:
+            print("Had an issue actually inserting the mode w/"+src_name+":")
+            print(e)
+            src = 0
+        finally:
+            self.sources[src_name] = (src, omega, pol, mask)
         
 
     def Add_Probe(self, xy_begin, xy_end, w, prb_name, pol):
@@ -476,16 +491,23 @@ class PMMI:
             prb_x = (np.arange(XY_beg[0], XY_end[0])).astype(int)
             prb_y = XY_beg[1]*np.ones(prb_x.shape, dtype=int)
         else:
-            raise RuntimeError("Probe needs to be 1-D")
+            prb_x, prb_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
+            #raise RuntimeError("Source needs to be 1-D")
 
         omega = 2*np.pi*w*c/self.a
-        prb = insert_mode(omega, self.dl, prb_x, prb_y, self.epsr, m = 1)
         mask = np.zeros((self.Nx, self.Ny))
         for i in range(len(prb_x)):
             mask[prb_x[i], prb_y[i]] = 1
 
-        self.probes[prb_name] = (prb, omega, pol, mask)
-
+        try:
+            prb = insert_mode(omega, self.dl, prb_x, prb_y, self.epsr, m = 1)
+        except Exception as e:
+            print("Had an issue actually inserting the mode w/"+prb_name+":")
+            print(e)
+            prb = 0
+        finally:
+            self.probes[prb_name] = (prb, omega, pol, mask)
+        
 
     def Rod_Array(self, r, xy_start, rod_eps, d_x = 1, d_y = 1):
         """
@@ -512,7 +534,7 @@ class PMMI:
 
 
     def Rod_Array_train(self, r, xy_start, array_dims, d_x = 1, d_y = 1,\
-                        bulbs = False, d_bulb = (0, 0), eps_bulb = 1,\
+                        bulbs = False, d_bulb = (0, 0), eps_bulb = 3.8,\
                         uniform = True):
         """
         Add a 2D rectangular rod array to the train elems. All rods are spaced 1 a
@@ -541,7 +563,7 @@ class PMMI:
 
 
     def Rod_Array_Hex_train(self, r, xy_start, array_dims, bulbs = False,\
-                            d_bulb = (0, 0), eps_bulb = 1):
+                            d_bulb = (0, 0), eps_bulb = 3.8):
         """
         Add a 2D hexagonal rod array to the train elems. All rods are spaced 1 a
         in the x and y direction by default.
@@ -569,6 +591,38 @@ class PMMI:
                 self.Add_Rod_train(r, (x, y))
                 if bulbs:
                     self.Add_Bulb(d_bulb, (x, y), eps_bulb)
+                    
+        
+    def Rod_Array_Hexagon_train(self, xy_cen, side_dim, r, d,\
+                          a_basis = np.array([[0,1],[np.sqrt(3)/2,1./2]]),\
+                          bulbs = False, r_bulb = (0, 0), eps_bulb = 3.8):
+        """
+        Add a hexagonal triangular array of rods or bulbs to the domain
+
+        Args:
+            xy_cen: np.array, center of hexagon
+            side_dim: number of rods along one side of hexagon
+            r: radius of the rod in a units
+            d: array spacing in a units
+            a_basis: np.array, contains basis vectors that determine orientation
+                     of hexagon
+            bulbs: bool, true if using bulbs
+            r_bulb: (inner, outer) radius of the rod in a units
+            eps_bulb: 0th order relative permittivity of bulb material
+        """
+        for i in range(side_dim):
+            for j in range(side_dim+i):
+                b1_loc = xy_cen-(side_dim-1-i)*d*a_basis[0,:]-(i-j)*d*a_basis[1,:]
+                b2_loc = xy_cen+(side_dim-1-i)*d*a_basis[0,:]+(i-j)*d*a_basis[1,:]
+                self.Add_Rod_train(r, b1_loc)
+                if i < side_dim - 1:
+                    self.Add_Rod_train(r, b2_loc)
+                if bulbs:
+                    self.Add_Bulb(r_bulb, b1_loc, eps_bulb)
+                    if i < side_dim - 1:
+                        self.Add_Bulb(r_bulb, b2_loc, eps_bulb)
+            
+        return
 
 
     ###########################################################################
@@ -1133,68 +1187,8 @@ class PMMI:
     def FDTD_fields_Opt(self, rho, T, src_names, savepath, plasma = False,\
                         plot = True, wp_max = 0, gamma = 0, uniform = True,\
                         bounds = []):
-        if plot:
-            fig, ax = plt.subplots(1,len(src_names)+1,constrained_layout=False,\
-                                   figsize=(4.5*(len(src_names)+1),4))
-            
-        for i in range(len(src_names)):
-            w_src = self.sources[src_names[i]][1]*self.a/2/np.pi/c
-            pol = self.sources[src_names[i]][2]
-            w = self.sources[src_names[i]][1]
-            src = self.sources[src_names[i]][0]
-
-            if plasma:
-                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
-                                                        uniform)
-            else:
-                epsr_opt = self.Rho_Parameterization(rho, bounds)
-
-            if pol == 'hz':
-                if self.fields == []:
-                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
-                    Ex, Ey, Hz = simulation.solve(src)
-                    self.fields = [Ex, Ey, Hz]
-                S.append(10*np.log10(Calc_Transmission(self.fields[0], self.fields[1],\
-                                   self.fields[2], pol, self.sources.pop('mask')[3], u_s,\
-                                   self.probes.pop('mask')[3], u_p)))
-                if plot:
-                    cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T, cmap='magma'), ax=ax[i])
-                    cbar.set_ticks([])
-                    cbar.ax.set_ylabel('H-Field', fontsize=font)
-                    ax[i].axes.xaxis.set_visible(False)
-                    ax[i].axes.yaxis.set_visible(False)
-            elif pol == 'ez':
-                if self.fields == []:
-                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
-                    Hx, Hy, Ez = simulation.solve(src)
-                    self.fields = [Hx, Hy, Ez]
-                S.append(10*np.log10(Calc_Transmission(self.fields[0], self.fields[1],\
-                                   self.fields[2], pol, self.sources.pop('mask')[3], u_s,\
-                                   self.probes.pop('mask')[3], u_p)))
-                if plot:
-                    cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T, cmap='magma'), ax=ax[i])
-                    cbar.set_ticks([])
-                    cbar.ax.set_ylabel('E-Field', fontsize=font)
-                    ax[i].axes.xaxis.set_visible(False)
-                    ax[i].axes.yaxis.set_visible(False)
-            else:
-                raise RuntimeError('The polarization associated with this source is\
-                               not valid.')
-            
-            print("The requested transmission for source "+str(i)+" is:", S[i])
-                               
-        if plot:
-            cbar = plt.colorbar(ax[1].imshow(np.real(epsr_opt).T, cmap='RdGy',\
-                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
-                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
-            cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
-            ax[len(src_names)].axes.xaxis.set_visible(False)
-            ax[len(src_names)].axes.yaxis.set_visible(False)
-            plt.savefig(savepath, dpi=1500)
-            plt.show()
-
         
-        return S
+        return 
         
         
     ###########################################################################
@@ -1989,7 +1983,7 @@ class PMMI:
 
     def Optimize_Waveguide_Penalize(self, Rho, src, prb, prbl, alpha, nepochs,\
             bounds = [], plasma = False, wp_max = 0, gamma = 0, uniform = True,\
-            param_evolution = False, param_out = None, E0 = None, E0l = None):
+            param_evolution = False, param_out = None, E0 = None, E0l = []):
         """
         Optimize a waveguide PMM
 
@@ -2031,8 +2025,9 @@ class PMMI:
 
         if E0 == None:
             E0 = mode_overlap(E, self.probes[prb][0])
-        if E0l == None:
-            E0l = field_mag_int(E, self.probes[prbl][3])
+        if E0l == []:
+            for prb_key in prbl:
+                E0l.append(field_mag_int(E, self.probes[prb_key][3]))
             
         #Define objective
         def objective(rho):
@@ -2061,8 +2056,15 @@ class PMMI:
             else:
                 raise RuntimeError("The source polarization is not valid.")
 
-            return mode_overlap(E, self.probes[prb][0])/E0-\
-                    field_mag_int(E, self.probes[prbl][3])/E0l
+            objective = (mode_overlap(E, self.probes[prb][0])/E0)
+            
+            obj_denom = 1
+            i=0
+            for prb_key in prbl:
+                objective -= 2*field_mag_int(E, self.probes[prb_key][3])/E0l[i]
+                i+=1
+                
+            return objective/obj_denom
 
         # Compute the gradient of the objective function
         objective_jac = jacobian(objective, mode='reverse')
@@ -2493,11 +2495,7 @@ class PMMI:
         if plasma:
             self.Params_to_Exp_wp(rho, src, wp_max)
         else:
-            print("The lattice frequency is: ", c/self.a/(10**9)," GHz")
-            print("The source frequency is: ", self.sources[src][1]/2/np.pi/(10**9), " GHz")
-            print("The plasma frequencies (GHz) necessary to achieve this design are:")
-            print(np.sqrt((1-np.real(self.Rho_to_Eps(rho, bounds)))*\
-                (self.sources[src][1]**2+(nu_col*2*np.pi*c/self.a)**2))/(10**9))
+            pass
 
 
     def Params_to_Exp_wp(self, rho, src, wp_max = 0):
