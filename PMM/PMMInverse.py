@@ -17,7 +17,7 @@ font = 18
 plt.rc('xtick', labelsize=font)
 plt.rc('ytick', labelsize=font)
 from autograd.scipy.signal import convolve as conv
-from skimage.draw import disk, rectangle, polygon, line_aa
+from skimage.draw import disk, rectangle, polygon, line_aa, line
 import ceviche
 from ceviche import fdfd_ez, jacobian, fdfd_hz
 from ceviche.optimizers import adam_optimize
@@ -25,6 +25,7 @@ from ceviche.modes import insert_mode
 import collections
 from functools import partial
 from scipy.sparse import csr_matrix
+import autograd.scipy.special as sp
 import os
 os.environ["KMP_WARNINGS"] = "FALSE"
 
@@ -37,6 +38,7 @@ e = 1.60217662*10**(-19)
 epso = 8.8541878128*10**(-12)
 muo = 4*np.pi*10**(-7)
 me = 9.1093837015*10**(-31)
+J01 = 2.40482555768577
 
 def mode_overlap(E1, E2):
     """
@@ -93,7 +95,7 @@ def Sp_u(Sp, u):
         Sp: Poynting vector matrix
         u: Unit vector in direction of interest
     """
-    assert np.dot(u,u) == 1, "Second arg. is not a unit vector!"
+    assert np.dot(u,u) > 1-0.00001 and np.dot(u,u) < 1+0.0001, "Second arg. is not a unit vector!"
 
     return np.dot(Sp, u)
 
@@ -202,6 +204,7 @@ class PMMI:
         self.epsr = np.ones((self.Nx, self.Ny)) #Initialize relative perm array
         self.design_region = np.zeros((self.Nx,self.Ny)) #Design region array
         self.train_elems = [] #Masks for trainable elements
+        self.train_elem_locs = []
         self.static_elems = np.ones((self.Nx, self.Ny)) #Array for static elements
                                                          #outside the training region.
         self.sources = {} #Empty dict to hold source arrays
@@ -283,6 +286,7 @@ class PMMI:
         train_elem = np.zeros((self.epsr.shape))
         train_elem[rr, cc] = 1
         train_elem = csr_matrix(train_elem)
+        self.train_elem_locs.append([center[0],center[1]])
         self.train_elems.append(train_elem)
 
 
@@ -298,6 +302,7 @@ class PMMI:
         R = int(round(r*self.res))
         X = int(round(center[0]*self.res))
         Y = int(round(center[1]*self.res))
+        self.train_elem_locs.append([center[0],center[1]])
         self.rod_shells = R
 
         for i in range(R):
@@ -433,7 +438,7 @@ class PMMI:
         self.static_elems[rer,rec] = eps
 
 
-    def Add_Source(self, xy_begin, xy_end, w, src_name, pol):
+    def Add_Source(self, xy_begin, xy_end, w, src_name, pol, thin = False):
         """
         Add a source to the domain.
 
@@ -453,7 +458,10 @@ class PMMI:
             src_x = (np.arange(XY_beg[0], XY_end[0])).astype(int)
             src_y = XY_beg[1]*np.ones(src_x.shape, dtype=int)
         else:
-            src_x, src_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
+            if thin:
+                src_x, src_y = line(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
+            else:
+                src_x, src_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
             #raise RuntimeError("Source needs to be 1-D")
 
         omega = 2*np.pi*w*c/self.a
@@ -471,7 +479,7 @@ class PMMI:
             self.sources[src_name] = (src, omega, pol, mask)
         
 
-    def Add_Probe(self, xy_begin, xy_end, w, prb_name, pol):
+    def Add_Probe(self, xy_begin, xy_end, w, prb_name, pol, thin = False):
         """
         Add a probe to the domain.
 
@@ -491,7 +499,10 @@ class PMMI:
             prb_x = (np.arange(XY_beg[0], XY_end[0])).astype(int)
             prb_y = XY_beg[1]*np.ones(prb_x.shape, dtype=int)
         else:
-            prb_x, prb_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
+            if thin:
+                prb_x, prb_y = line(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
+            else:
+                prb_x, prb_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
             #raise RuntimeError("Source needs to be 1-D")
 
         omega = 2*np.pi*w*c/self.a
@@ -595,7 +606,8 @@ class PMMI:
         
     def Rod_Array_Hexagon_train(self, xy_cen, side_dim, r, d,\
                           a_basis = np.array([[0,1],[np.sqrt(3)/2,1./2]]),\
-                          bulbs = False, r_bulb = (0, 0), eps_bulb = 3.8):
+                          bulbs = False, r_bulb = (0, 0), eps_bulb = 3.8,\
+                          uniform = True):
         """
         Add a hexagonal triangular array of rods or bulbs to the domain
 
@@ -614,9 +626,15 @@ class PMMI:
             for j in range(side_dim+i):
                 b1_loc = xy_cen-(side_dim-1-i)*d*a_basis[0,:]-(i-j)*d*a_basis[1,:]
                 b2_loc = xy_cen+(side_dim-1-i)*d*a_basis[0,:]+(i-j)*d*a_basis[1,:]
-                self.Add_Rod_train(r, b1_loc)
+                if uniform:
+                    self.Add_Rod_train(r, b1_loc)
+                else:
+                    self.Add_Rod_train_radial_shells(r, b1_loc)
                 if i < side_dim - 1:
-                    self.Add_Rod_train(r, b2_loc)
+                    if uniform:
+                        self.Add_Rod_train(r, b2_loc)
+                    else:
+                        self.Add_Rod_train_radial_shells(r, b2_loc)
                 if bulbs:
                     self.Add_Bulb(r_bulb, b1_loc, eps_bulb)
                     if i < side_dim - 1:
@@ -1474,7 +1492,8 @@ class PMMI:
                 raise RuntimeError('The polarization associated with this source is\
                                not valid.')
                     
-            self.Add_Probe(prb[i][0][0,:], prb[i][0][1,:], w_src, 'mask', pol)
+            self.Add_Probe(prb[i][0][0,:], prb[i][0][1,:], w_src, 'mask', pol,\
+                           thin = True)
             denoms.append(Calc_Transmission(self.fields[0], self.fields[1],\
                     self.fields[2], pol, 1, self.probes.pop('mask')[3], prb[i][1]))
                 
@@ -1646,6 +1665,53 @@ class PMMI:
                     elem_locations += train_elem
         
         return train_epsr, elem_locations
+    
+    
+    def Scale_Rho_wp_bessel(self, rho, w_src, wp_max = 0, gamma = 0,\
+                                pmat = np.empty(0)):
+        """
+        Uses the Drude dispersion along with an arctan barrier to map the
+        parameters to relative permittivity according to a 6th order polynomial
+        density profile
+
+        Args:
+            rho: Parameters being optimized. In this case, these parameters are
+                 the non-dimensionalizxed average plasma frequencies of the
+                 columns.
+            w_src: Non-dimensionalized operating frequency
+            wp_max: Approximate maximum non-dimensionalized plasma frequency
+            gamma: Non-dimensionalized collision frequency
+            pmat: perturbation matrix
+        """
+        rho = rho.flatten()
+        pmat = pmat.flatten()
+        denom = w_src**2 - 1j*gamma*w_src
+        train_elem = self.train_elems[0].toarray()
+        train_epsr = np.zeros(train_elem.shape)
+        elem_locations = np.zeros(train_elem.shape)
+        if wp_max > 0:
+            rho = (wp_max/1.5)*npa.arctan(rho/(wp_max/7.5))
+        if pmat.shape == rho.shape:
+            wp2 = npa.power(npa.abs(rho), 2)
+            wp2p = npa.abs(wp2 + npa.multiply(wp2, pmat))
+            for r in range(self.rod_shells):
+                rho_shell = npa.subtract(1, npa.divide(npa.multiply(wp2p,\
+                            (J01**2/2.49691834)*sp.jn(0, J01*r/(self.rod_shells-1))), denom))
+                for i in range(len(rho_shell)):
+                    train_elem = self.train_elems[i*self.rod_shells + r].toarray()
+                    train_epsr = train_epsr + rho_shell[i]*train_elem
+                    elem_locations += train_elem
+        else:
+            for r in range(self.rod_shells):
+                rho_shell = npa.subtract(1, npa.divide(npa.multiply(npa.power(npa.abs(rho), 2),\
+                            (J01**2/2.49691834)*sp.jn(0, J01*r/(self.rod_shells-1))), denom))
+                for i in range(len(rho_shell)):
+                    train_elem = self.train_elems[i*self.rod_shells + r].toarray()
+                    train_epsr = train_epsr + rho_shell[i]*train_elem
+                    elem_locations += train_elem
+        
+        
+        return train_epsr, elem_locations
 
 
     def Eps_to_Rho(self, epsr, bounds=[], plasma = False, w_src = 1, wp_max = 0):
@@ -1733,7 +1799,7 @@ class PMMI:
 
 
     def Rho_Parameterization_wp(self, rho, w_src, wp_max = 0, gamma = 0,\
-                                uniform = True, eps_bg_des = 1, pmat = np.empty(0)):
+                                uniform = True, profile = 'j0', eps_bg_des = 1, pmat = np.empty(0)):
         """
         Apply scaling/parameterization and create a permittivity matrix when
         mapping plasma frequency to permittivity
@@ -1751,7 +1817,11 @@ class PMMI:
             train_epsr, elem_locs = self.Scale_Rho_wp(rho, w_src, wp_max, gamma,\
                                                       pmat)
         else:
-            train_epsr, elem_locs = self.Scale_Rho_wp_polynomial(rho, w_src, wp_max,\
+            if profile == '6':
+                train_epsr, elem_locs = self.Scale_Rho_wp_polynomial(rho, w_src, wp_max,\
+                                                                gamma, pmat)
+            if profile == 'j0':
+                train_epsr, elem_locs = self.Scale_Rho_wp_bessel(rho, w_src, wp_max,\
                                                                 gamma, pmat)
 
         return self.Mask_Combine_Rho_wp(train_epsr, elem_locs, eps_bg_des, Complex = Complex)
@@ -2512,7 +2582,9 @@ class PMMI:
         print("The source frequency is: ", self.sources[src][1]/2/np.pi/(10**9), " GHz")
         print("The plasma frequencies (GHz, corresponding to average density in discharge) necessary to achieve this design are:")
         if wp_max > 0:
-            print((wp_max/1.5)*npa.arctan(npa.abs(rho)/(wp_max/7.5))*c/self.a/(10**9))
+            fp = (wp_max/1.5)*npa.arctan(npa.abs(rho)/(wp_max/7.5))*c/self.a/(10**9)
+            for i in range(len(self.train_elem_locs)):
+                print('Rod at ', self.train_elem_locs[i], ": ", fp[i])
         else:
             print(npa.abs(rho)*c/self.a/(10**9))
 
