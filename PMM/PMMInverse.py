@@ -95,7 +95,8 @@ def Sp_u(Sp, u):
         Sp: Poynting vector matrix
         u: Unit vector in direction of interest
     """
-    assert np.dot(u,u) > 1-0.00001 and np.dot(u,u) < 1+0.0001, "Second arg. is not a unit vector!"
+    assert np.dot(u,u) > 1-0.00001 and np.dot(u,u) < 1+0.0001,\
+        "Second arg. is not a unit vector!"
 
     return np.dot(Sp, u)
 
@@ -148,7 +149,7 @@ def field_mag_int(E, mask):
         mask: matrix where all entries are zero except the entries over which
         you would like to integrate
     """
-    return npa.abs(npa.sum(npa.multiply(npa.multiply(npa.conj(E), E), mask)))*1e6
+    return npa.abs(npa.sum(npa.multiply(npa.multiply(npa.conj(E),E),mask)))*1e6
 
 
 def callback_params(iteration, of_list, rho, dir = ''):
@@ -205,8 +206,9 @@ class PMMI:
         self.design_region = np.zeros((self.Nx,self.Ny)) #Design region array
         self.train_elems = [] #Masks for trainable elements
         self.train_elem_locs = []
-        self.static_elems = np.ones((self.Nx, self.Ny)) #Array for static elements
-                                                         #outside the training region.
+        self.static_elems = np.ones((self.Nx, self.Ny)) #Array for static 
+                                                        #elements outside the
+                                                        #training region.
         self.sources = {} #Empty dict to hold source arrays
         self.probes = {} #Empty dict to hold probe arrays
         self.rod_shells = 0 #Integer that tells you how many shells exist in a
@@ -461,7 +463,8 @@ class PMMI:
             if thin:
                 src_x, src_y = line(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
             else:
-                src_x, src_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
+                src_x, src_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0],\
+                                          XY_end[1])
             #raise RuntimeError("Source needs to be 1-D")
 
         omega = 2*np.pi*w*c/self.a
@@ -502,7 +505,8 @@ class PMMI:
             if thin:
                 prb_x, prb_y = line(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
             else:
-                prb_x, prb_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0], XY_end[1])
+                prb_x, prb_y, _ = line_aa(XY_beg[0], XY_beg[1], XY_end[0],\
+                                          XY_end[1])
             #raise RuntimeError("Source needs to be 1-D")
 
         omega = 2*np.pi*w*c/self.a
@@ -548,8 +552,8 @@ class PMMI:
                         bulbs = False, d_bulb = (0, 0), eps_bulb = 3.8,\
                         uniform = True):
         """
-        Add a 2D rectangular rod array to the train elems. All rods are spaced 1 a
-        in the x and y direction by default.
+        Add a 2D rectangular rod array to the train elems. All rods are spaced 
+        1 a in the x and y direction by default.
 
         Args:
             r: radius of rods in a units
@@ -558,7 +562,8 @@ class PMMI:
             d_x: lattice spacing in x-direction in a units
             d_y: lattice spacing in y-direction in a units
             bulbs: bool specifying if dicharge glass is included
-            d_bulb: tuple in a units (inner radius of glass, outer radius of glass)
+            d_bulb: tuple in a units (inner radius of glass, outer radius of 
+                    glass)
             eps_bulb: rel. perm. of bulb glass
         """
         for i in range(array_dims[0]):
@@ -586,7 +591,8 @@ class PMMI:
             d_x: lattice spacing in x-direction in a units
             d_y: lattice spacing in y-direction in a units
             bulbs: bool specifying if dicharge glass is included
-            d_bulb: tuple in a units (inner radius of glass, outer radius of glass)
+            d_bulb: tuple in a units (inner radius of glass, outer radius of 
+                    glass)
             eps_bulb: rel. perm. of bulb glass
         """
         for i in range(array_dims[0]):
@@ -624,8 +630,10 @@ class PMMI:
         """
         for i in range(side_dim):
             for j in range(side_dim+i):
-                b1_loc = xy_cen-(side_dim-1-i)*d*a_basis[0,:]-(i-j)*d*a_basis[1,:]
-                b2_loc = xy_cen+(side_dim-1-i)*d*a_basis[0,:]+(i-j)*d*a_basis[1,:]
+                b1_loc = xy_cen-(side_dim-1-i)*d*a_basis[0,:]-\
+                        (i-j)*d*a_basis[1,:]
+                b2_loc = xy_cen+(side_dim-1-i)*d*a_basis[0,:]+\
+                        (i-j)*d*a_basis[1,:]
                 if uniform:
                     self.Add_Rod_train(r, b1_loc)
                 else:
@@ -651,7 +659,8 @@ class PMMI:
         Solve and visualize an static simulation with certain sources active
         
         Args:
-            src_names: list of strings that indicate which sources you'd like to simulate
+            src_names: list of strings that indicate which sources you'd like 
+                       to simulate
         """
         fig, ax = plt.subplots(1, len(src_names)+1, constrained_layout=False,\
                                figsize=(9*len(src_names),4))
@@ -660,32 +669,34 @@ class PMMI:
                 if src_names[i] != src_names[i-1]:
                     self.Clear_fields()
             if self.sources[src_names[i]][2] == 'hz':
-                simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl, self.epsr,\
-                            [self.Npml, self.Npml])
+                simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl,\
+                                     self.epsr, [self.Npml, self.Npml])
                 Ex, Ey, Hz = simulation.solve(self.sources[src_names[i]][0])
-                cbar = plt.colorbar(ax[i].imshow(np.abs(Hz.T), cmap='magma'), ax=ax[i])
+                cbar = plt.colorbar(ax[i].imshow(np.abs(Hz.T), cmap='magma'),\
+                                    ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('H-Field Magnitude', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
                 ax[i].axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 2, colors='w', alpha=0.5)
             elif self.sources[src_names[i]][2] == 'ez':
-                simulation = fdfd_ez(self.sources[src_names[i]][1], self.dl, self.epsr,\
-                            [self.Npml, self.Npml])
+                simulation = fdfd_ez(self.sources[src_names[i]][1], self.dl,\
+                                     self.epsr, [self.Npml, self.Npml])
                 Hx, Hy, Ez = simulation.solve(self.sources[src_names[i]][0])
-                cbar = plt.colorbar(ax[i].imshow(np.abs(Ez.T), cmap='magma'), ax=ax[i])
+                cbar = plt.colorbar(ax[i].imshow(np.abs(Ez.T), cmap='magma'),\
+                                    ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('E-Field Magnitude', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
                 ax[i].axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 2, colors='w', alpha=0.5)
             else:
-                raise RuntimeError('The polarization associated with this source is\
-                                    not valid.')
+                raise RuntimeError('The polarization associated with this '+\
+                                   'source is not valid.')
                 
         cbar = plt.colorbar(ax[len(src_names)].imshow(self.epsr.T, cmap='RdGy',\
-                            vmin = np.min(self.epsr), vmax = np.max(self.epsr)),\
-                            ax=ax[len(src_names)])
+                        vmin = np.min(self.epsr), vmax = np.max(self.epsr)),\
+                        ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
         ax[len(src_names)].axes.xaxis.set_visible(False)
         ax[len(src_names)].axes.yaxis.set_visible(False)
@@ -698,10 +709,12 @@ class PMMI:
         Solve and visualize a static simulation with certain sources active
         
         Args:
-            src_names: list of strings that indicate which sources you'd like to simulate
+            src_names: list of strings that indicate which sources you'd like
+                       to simulate
         """
         if perm:
-            fig, ax = plt.subplots(1, len(src_names)+1, constrained_layout=False,\
+            fig, ax = plt.subplots(1, len(src_names)+1,\
+                                   constrained_layout=False,\
                                    figsize=(4.5*(len(src_names)+1),4))
         else:
             fig, ax = plt.subplots(1, len(src_names), constrained_layout=False,\
@@ -713,12 +726,14 @@ class PMMI:
                     self.Clear_fields()
             if self.sources[src_names[i]][2] == 'hz':
                 if self.fields == []:
-                    simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl,\
-                                         self.epsr, [self.Npml, self.Npml])
+                    simulation = fdfd_hz(self.sources[src_names[i]][1],\
+                                         self.dl, self.epsr,\
+                                         [self.Npml, self.Npml])
                     Ex, Ey, Hz = simulation.solve(self.sources[src_names[i]][0])
                     self.fields = [Ex, Ey, Hz]
                     
-                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2].T), cmap='RdBu'), ax=ax[i])
+                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2].T),\
+                                                 cmap='RdBu'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('H-Field', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
@@ -726,25 +741,27 @@ class PMMI:
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             elif self.sources[src_names[i]][2] == 'ez':
                 if self.fields == []:
-                    simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl,\
-                                         self.epsr, [self.Npml, self.Npml])
+                    simulation = fdfd_hz(self.sources[src_names[i]][1],\
+                                         self.dl, self.epsr,\
+                                         [self.Npml, self.Npml])
                     Hx, Hy, Ez = simulation.solve(self.sources[src_names[i]][0])
                     self.fields = [Hx, Hy, Ez]
                     
-                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2].T), cmap='RdBu'), ax=ax[i])
+                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2].T),\
+                                                 cmap='RdBu'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('E-Field', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
                 ax[i].axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             else:
-                raise RuntimeError('The polarization associated with this source is\
-                                   not valid.')
+                raise RuntimeError('The polarization associated with this '+\
+                                   'source is not valid.')
         
         if perm:
-            cbar = plt.colorbar(ax[len(src_names)].imshow(self.epsr.T, cmap='RdGy',\
-                        vmin = np.min(self.epsr), vmax = np.max(self.epsr)),\
-                        ax=ax[len(src_names)])
+            cbar = plt.colorbar(ax[len(src_names)].imshow(self.epsr.T,\
+                        cmap='RdGy', vmin = np.min(self.epsr),\
+                        vmax = np.max(self.epsr)), ax=ax[len(src_names)])
             cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
             ax[len(src_names)].axes.xaxis.set_visible(False)
             ax[len(src_names)].axes.yaxis.set_visible(False)
@@ -753,15 +770,16 @@ class PMMI:
         plt.show()
 
 
-    def Viz_Sim_abs_opt(self, rho, src_names, savepath, bounds = [], plasma = False,\
-                        show = True, mult = False, wp_max = 0, gamma = 0, uniform = True,\
-                        perturb = 0, amp = 1):
+    def Viz_Sim_abs_opt(self, rho, src_names, savepath, bounds = [],\
+                        plasma = False, show = True, mult = False, wp_max = 0,\
+                        gamma = 0, uniform = True, perturb = 0, amp = 1):
         """
         Solve and visualize an optimized simulation with certain sources active
         
         Args:
             rho: optimal parameters
-            src_names: list of strings that indicate which sources you'd like to simulate
+            src_names: list of strings that indicate which sources you'd like 
+                       to simulate
             savepath = save path
             bounds: Upper and lower bounds for parameters
             plasma: bool specifying if params map to wp
@@ -796,46 +814,49 @@ class PMMI:
                 src = self.sources[src_names[i]][0]
 
             if plasma:
-                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
-                                                        uniform, pmat = pmat)
+                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max,\
+                                                        gamma, uniform,\
+                                                        pmat = pmat)
             else:
                 epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
 
             if pol == 'hz':
                 if self.fields == []:
-                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_hz(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Ex, Ey, Hz = simulation.solve(src)
                     self.fields = [Ex, Ey, Hz]
                 
                 max_field = np.max(np.abs(self.fields[2]))
-                cbar = plt.colorbar(ax[i].imshow(amp*np.abs(self.fields[2].T), cmap='magma',\
-                                    vmin = np.min(amp*np.abs(self.fields[2])),\
-                                    vmax = max_field), ax=ax[i])
+                cbar = plt.colorbar(ax[i].imshow(amp*np.abs(self.fields[2].T),\
+                  cmap='magma', vmin = np.min(amp*np.abs(self.fields[2])),\
+                  vmax = max_field), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('H-Field Magnitude', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
                 ax[i].axes.yaxis.set_visible(False)
             elif pol == 'ez':
                 if self.fields == []:
-                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_ez(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Hx, Hy, Ez = simulation.solve(src)
                     self.fields = [Hx, Hy, Ez]
 
                 max_field = np.max(np.abs(self.fields[2]))
-                cbar = plt.colorbar(ax[i].imshow(amp*np.abs(self.fields[2].T), cmap='magma',\
-                                    vmin = np.min(amp*np.abs(self.fields[2])),\
-                                    vmax = max_field), ax=ax[i])
+                cbar = plt.colorbar(ax[i].imshow(amp*np.abs(self.fields[2].T),\
+                  cmap='magma', vmin = np.min(amp*np.abs(self.fields[2])),\
+                  vmax = max_field), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('E-Field Magnitude', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
                 ax[i].axes.yaxis.set_visible(False)
             else:
-                raise RuntimeError('The polarization associated with this source is\
-                                    not valid.')
+                raise RuntimeError('The polarization associated with this '+\
+                                   'source is not valid.')
 
-        cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
-                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
-                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+        cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T,\
+          cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+          vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
         ax[len(src_names)].axes.xaxis.set_visible(False)
         ax[len(src_names)].axes.yaxis.set_visible(False)
@@ -850,10 +871,12 @@ class PMMI:
         Solve and visualize a static simulation with certain sources active
         
         Args:
-            src_names: list of strings that indicate which sources you'd like to simulate
+            src_names: list of strings that indicate which sources you'd like 
+                       to simulate
         """
         if perm:
-            fig, ax = plt.subplots(1, len(src_names)+1, constrained_layout=False,\
+            fig, ax = plt.subplots(1, len(src_names)+1,\
+                                   constrained_layout=False,\
                                    figsize=(8*len(src_names),2))
 
             for i in range(len(src_names)):
@@ -861,36 +884,40 @@ class PMMI:
                     if src_names[i] != src_names[i-1]:
                         self.Clear_fields()
                 if self.sources[src_names[i]][2] == 'hz':
-                    simulation = fdfd_hz(self.sources[src_names[i]][1], self.dl, self.epsr,\
-                                [self.Npml, self.Npml])
+                    simulation = fdfd_hz(self.sources[src_names[i]][1],\
+                                         self.dl, self.epsr,\
+                                         [self.Npml, self.Npml])
                     Ex, Ey, Hz = simulation.solve(self.sources[src_names[i]][0])
                     S = Sp_u(Sp_hz(Ex, Ey, Hz), u)
-                    cbar = plt.colorbar(ax[i].imshow(np.real(S.T), cmap='RdBu'), ax=ax[i])
+                    cbar = plt.colorbar(ax[i].imshow(np.real(S.T),\
+                                                     cmap='RdBu'), ax=ax[i])
                     cbar.set_ticks([])
                     cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
                     ax[i].axes.xaxis.set_visible(False)
                     ax[i].axes.yaxis.set_visible(False)
                     #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
                 elif self.sources[src_names[i]][2] == 'ez':
-                    simulation = fdfd_ez(self.sources[src_names[i]][1], self.dl, self.epsr,\
-                                [self.Npml, self.Npml])
+                    simulation = fdfd_ez(self.sources[src_names[i]][1],\
+                                         self.dl, self.epsr,\
+                                         [self.Npml, self.Npml])
                     Hx, Hy, Ez = simulation.solve(self.sources[src_names[i]][0])
                     S = Sp_u(Sp_ez(Hx, Hy, Ez), u)
                     #print(np.real(S)[140,50])
                     #print(self.sources[src_names[i]])
-                    cbar = plt.colorbar(ax[i].imshow(np.real(S.T), cmap='RdBu'), ax=ax[i])
+                    cbar = plt.colorbar(ax[i].imshow(np.real(S.T),\
+                                                     cmap='RdBu'), ax=ax[i])
                     cbar.set_ticks([])
                     cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
                     ax[i].axes.xaxis.set_visible(False)
                     ax[i].axes.yaxis.set_visible(False)
                     #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
                 else:
-                    raise RuntimeError('The polarization associated with this source is\
-                                        not valid.')
+                    raise RuntimeError('The polarization associated with this '+\
+                                       'source is not valid.')
                 
-            cbar = plt.colorbar(ax[len(src_names)].imshow(self.epsr.T, cmap='RdGy',\
-                            vmin = np.min(self.epsr), vmax = np.max(self.epsr)),\
-                            ax=ax[len(src_names)])
+            cbar = plt.colorbar(ax[len(src_names)].imshow(self.epsr.T,\
+              cmap='RdGy', vmin = np.min(self.epsr), vmax = np.max(self.epsr)),\
+              ax=ax[len(src_names)])
             cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
             ax[len(src_names)].axes.xaxis.set_visible(False)
             ax[len(src_names)].axes.yaxis.set_visible(False)
@@ -902,8 +929,8 @@ class PMMI:
                                    figsize=(4.5*len(src_names),3))
 
             if self.sources[src_names[0]][2] == 'hz':
-                simulation = fdfd_hz(self.sources[src_names[0]][1], self.dl, self.epsr,\
-                            [self.Npml, self.Npml])
+                simulation = fdfd_hz(self.sources[src_names[0]][1], self.dl,\
+                                     self.epsr, [self.Npml, self.Npml])
                 Ex, Ey, Hz = simulation.solve(self.sources[src_names[0]][0])
                 S = Sp_u(Sp_hz(Ex, Ey, Hz), u)
                 cbar = plt.colorbar(ax.imshow(np.real(S.T), cmap='RdBu'), ax=ax)
@@ -913,8 +940,8 @@ class PMMI:
                 ax.axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             elif self.sources[src_names[0]][2] == 'ez':
-                simulation = fdfd_ez(self.sources[src_names[0]][1], self.dl, self.epsr,\
-                            [self.Npml, self.Npml])
+                simulation = fdfd_ez(self.sources[src_names[0]][1], self.dl,\
+                                     self.epsr, [self.Npml, self.Npml])
                 Hx, Hy, Ez = simulation.solve(self.sources[src_names[0]][0])
                 S = Sp_u(Sp_ez(Hx, Hy, Ez), u)
                 cbar = plt.colorbar(ax.imshow(np.real(S.T), cmap='RdBu'), ax=ax)
@@ -924,23 +951,25 @@ class PMMI:
                 ax.axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             else:
-                raise RuntimeError('The polarization associated with this source is\
-                                        not valid.')
+                raise RuntimeError('The polarization associated with this '+\
+                                   'source is not valid.')
 
             plt.savefig(savepath, dpi=1500)
             plt.show()
 
 
 
-    def Viz_Sim_Poynting_opt(self, rho, u, src_names, savepath, bounds = [], plasma = False,\
-                           show = True, mult = False, wp_max = 0, gamma = 0, uniform = True,\
-                           perturb = 0):
+    def Viz_Sim_Poynting_opt(self, rho, u, src_names, savepath, bounds = [],\
+                             plasma = False, show = True, mult = False,\
+                             wp_max = 0, gamma = 0, uniform = True,\
+                             perturb = 0):
         """
         Solve and visualize an optimized simulation with certain sources active
         
         Args:
             rho: optimal parameters
-            src_names: list of strings that indicate which sources you'd like to simulate
+            src_names: list of strings that indicate which sources you'd like
+                       to simulate
             savepath = save path
             bounds: Upper and lower bounds for parameters
             plasma: bool specifying if params map to wp
@@ -973,19 +1002,22 @@ class PMMI:
                 src = self.sources[src_names[i]][0]
 
             if plasma:
-                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
-                                                        uniform, pmat = pmat)
+                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max,\
+                                                        gamma, uniform,\
+                                                        pmat = pmat)
             else:
                 epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
 
             if pol == 'hz':
                 if self.fields == []:
-                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_hz(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Ex, Ey, Hz = simulation.solve(src)
                     self.fields = [Ex, Ey, Hz]
 
-                S = Sp_u(Sp_hz(self.fields[0], self.fields[1], self.fields[2]), u)
-                cbar = plt.colorbar(ax[i].imshow(np.real(S).T, cmap='RdBu'), ax=ax[i])
+                S = Sp_u(Sp_hz(self.fields[0],self.fields[1],self.fields[2]),u)
+                cbar = plt.colorbar(ax[i].imshow(np.real(S).T, cmap='RdBu'),\
+                                    ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
@@ -993,24 +1025,26 @@ class PMMI:
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             elif pol == 'ez':
                 if self.fields == []:
-                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_ez(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Hx, Hy, Ez = simulation.solve(src)
                     self.fields = [Hx, Hy, Ez]
  
-                S = Sp_u(Sp_hz(self.fields[0], self.fields[1], self.fields[2]), u)
-                cbar = plt.colorbar(ax[i].imshow(np.real(S).T, cmap='RdBu'), ax=ax[i])
+                S = Sp_u(Sp_hz(self.fields[0],self.fields[1],self.fields[2]),u)
+                cbar = plt.colorbar(ax[i].imshow(np.real(S).T, cmap='RdBu'),\
+                                    ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
                 ax[i].axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             else:
-                raise RuntimeError('The polarization associated with this source is\
-                                    not valid.')
+                raise RuntimeError('The polarization associated with this '+\
+                                   'source is not valid.')
 
-        cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
-                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
-                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+        cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T,\
+          cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+          vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
         ax[len(src_names)].axes.xaxis.set_visible(False)
         ax[len(src_names)].axes.yaxis.set_visible(False)
@@ -1020,15 +1054,16 @@ class PMMI:
             plt.show()
 
 
-    def Viz_Sim_fields_opt(self, rho, src_names, savepath, bounds = [], plasma = False,\
-                           show = True, mult = False, wp_max = 0, gamma = 0, uniform = True,\
-                           perturb = 0):
+    def Viz_Sim_fields_opt(self, rho, src_names, savepath, bounds = [],\
+                           plasma = False, show = True, mult = False,\
+                           wp_max = 0, gamma = 0, uniform = True, perturb = 0):
         """
         Solve and visualize an optimized simulation with certain sources active
         
         Args:
             rho: optimal parameters
-            src_names: list of strings that indicate which sources you'd like to simulate
+            src_names: list of strings that indicate which sources you'd like
+                       to simulate
             savepath = save path
             bounds: Upper and lower bounds for parameters
             plasma: bool specifying if params map to wp
@@ -1061,17 +1096,20 @@ class PMMI:
                 src = self.sources[src_names[i]][0]
 
             if plasma:
-                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
-                                                        uniform, pmat = pmat)
+                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max,\
+                                                        gamma, uniform,\
+                                                        pmat = pmat)
             else:
                 epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
 
             if pol == 'hz':
                 if self.fields == []:
-                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_hz(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Ex, Ey, Hz = simulation.solve(src)
                     self.fields = [Ex, Ey, Hz]
-                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T, cmap='RdBu'), ax=ax[i])
+                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T,\
+                                                 cmap='RdBu'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('H-Field', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
@@ -1079,22 +1117,24 @@ class PMMI:
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             elif pol == 'ez':
                 if self.fields == []:
-                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_ez(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Hx, Hy, Ez = simulation.solve(src)
                     self.fields = [Hx, Hy, Ez]
-                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T, cmap='RdBu'), ax=ax[i])
+                cbar = plt.colorbar(ax[i].imshow(np.real(self.fields[2]).T,\
+                                                 cmap='RdBu'), ax=ax[i])
                 cbar.set_ticks([])
                 cbar.ax.set_ylabel('E-Field', fontsize=font)
                 ax[i].axes.xaxis.set_visible(False)
                 ax[i].axes.yaxis.set_visible(False)
                 #ax[i].contour(epsr_opt.T, 1, colors='k', alpha=0.5)
             else:
-                raise RuntimeError('The polarization associated with this source is\
-                                    not valid.')
+                raise RuntimeError('The polarization associated with this '+\
+                                   'source is not valid.')
 
-        cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
-                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
-                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+        cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T,\
+          cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+          vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
         ax[len(src_names)].axes.xaxis.set_visible(False)
         ax[len(src_names)].axes.yaxis.set_visible(False)
@@ -1172,7 +1212,8 @@ class PMMI:
                 else: 
                     idx_miss.append(i)
                 print("Something went wrong with w =", w[i])
-                print("Interpolating if possible, otherwise, using last calculated value.")
+                print("Interpolating if possible, otherwise, using last "+\
+                      "calculated value.")
 
         for i in idx_miss:
             if i >= 1:
@@ -1221,8 +1262,8 @@ class PMMI:
         
         Args:
             rho: optimal parameters
-            src_names: names of sources in sources dictionary that will be active
-                      in the simulation.
+            src_names: names of sources in sources dictionary that will be
+                      active in the simulation.
             denoms: [denominator for S-params]
             s11: [[np.array([[s11_loc_begin],[s11_loc_end]]), u_s11]]
                 u_s11: unit vector in direction of source propagation
@@ -1247,22 +1288,25 @@ class PMMI:
             src = self.sources[src_names[i]][0]
 
             if plasma:
-                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
-                                                        uniform)
+                epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max,\
+                                                        gamma, uniform)
             else:
                 epsr_opt = self.Rho_Parameterization(rho, bounds)
 
             if pol == 'hz':
                 #Calculate fields if needed
                 if self.fields == []:
-                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_hz(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Ex, Ey, Hz = simulation.solve(src)
                     self.fields = [Ex, Ey, Hz]
                 
                 #Plot magnitude of Poynting Vector if plot
                 if plot:
-                    Sp = Sp_mag(Sp_hz(self.fields[0], self.fields[1], self.fields[2]))
-                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
+                    Sp = Sp_mag(Sp_hz(self.fields[0], self.fields[1],\
+                                      self.fields[2]))
+                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'),\
+                                        ax=ax[i])
                     cbar.set_ticks([])
                     cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
                     ax[i].axes.xaxis.set_visible(False)
@@ -1271,44 +1315,50 @@ class PMMI:
             elif pol == 'ez':
                 #Calculate fields if needed
                 if self.fields == []:
-                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_ez(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Hx, Hy, Ez = simulation.solve(src)
                     self.fields = [Hx, Hy, Ez]
                     
                 #Plot magnitude of Poynting Vector if plot
                 if plot:
-                    Sp = Sp_mag(Sp_ez(self.fields[0], self.fields[1], self.fields[2]))
-                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
+                    Sp = Sp_mag(Sp_ez(self.fields[0], self.fields[1],\
+                                      self.fields[2]))
+                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'),\
+                                        ax=ax[i])
                     cbar.set_ticks([])
                     cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
                     ax[i].axes.xaxis.set_visible(False)
                     ax[i].axes.yaxis.set_visible(False)
             else:
-                raise RuntimeError('The polarization associated with this source is\
-                               not valid.')
+                raise RuntimeError('The polarization associated with this '+\
+                                   'source is not valid.')
             
             #Calculate Sparams
             S_src = []
             self.Add_Probe(s11[i][0][0,:], s11[i][0][1,:], w_src, 'mask', pol)
             Flux = Calc_Transmission(self.fields[0], self.fields[1],\
-                    self.fields[2], pol, 1, self.probes.pop('mask')[3], s11[i][1])
+                    self.fields[2], pol, 1, self.probes.pop('mask')[3],\
+                    s11[i][1])
             print('denom:',denoms[i])
             print('S11 Flux:',Flux)
             S_src.append(10*np.log10(np.abs(denoms[i] - Flux)/denoms[i]))
             for s21_prb in (s21[i]):
                 print('probe:',s21_prb)
-                self.Add_Probe(s21_prb[0][0,:], s21_prb[0][1,:], w_src, 'mask', pol)
+                self.Add_Probe(s21_prb[0][0,:], s21_prb[0][1,:], w_src, 'mask',\
+                               pol)
                 Flux = Calc_Transmission(self.fields[0], self.fields[1],\
-                    self.fields[2], pol, 1, self.probes.pop('mask')[3], s21_prb[1])
+                    self.fields[2], pol, 1, self.probes.pop('mask')[3],\
+                        s21_prb[1])
                 print('flux:',Flux)
                 S_src.append(10*np.log10(Flux/denoms[i]))
             S.append(S_src)
             print("The requested S-params for source "+str(i)+" are:", S[i])
                                
         if plot:
-            cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
-                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
-                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+            cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T,\
+              cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+              vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
             cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
             ax[len(src_names)].axes.xaxis.set_visible(False)
             ax[len(src_names)].axes.yaxis.set_visible(False)
@@ -1318,16 +1368,16 @@ class PMMI:
         return S
     
     
-    def Get_Total_Flux(self, src_names, prbs, opt = False, rho = None, savepath = 'none.pdf',
-                       plasma = False, plot = True, wp_max = 0, gamma = 0,\
-                       uniform = True, bounds = []):
+    def Get_Total_Flux(self, src_names, prbs, opt = False, rho = None,\
+                       savepath = 'none.pdf', plasma = False, plot = True,\
+                       wp_max = 0, gamma = 0, uniform = True, bounds = []):
         """
         Get total energy flux out of a source.
         
         Args:
             rho: optimal parameters
-            src_names: names of sources in sources dictionary that will be active
-                      in the simulation.
+            src_names: names of sources in sources dictionary that will be
+                       active in the simulation.
             denom: denominator for S-params
             prbs: [[[np.array([[prb_loc_begin],[prb_loc_end]]), u_prb]]]
                 u_prb: unit vector in direction of source propagation
@@ -1354,36 +1404,40 @@ class PMMI:
                 epsr_opt = self.epsr
             else:
                 if plasma:
-                    epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
-                                                        uniform)
+                    epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max,\
+                                                            gamma, uniform)
                 else:
                     epsr_opt = self.Rho_Parameterization(rho, bounds)
                 
             if pol == 'hz':
                 #Calculate fields if needed
                 if self.fields == []:
-                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_hz(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Ex, Ey, Hz = simulation.solve(src)
                     self.fields = [Ex, Ey, Hz]
                 
                 #Plot magnitude of Poynting Vector if plot
                 if plot:
-                    Sp = Sp_mag(Sp_hz(self.fields[0], self.fields[1], self.fields[2]))
+                    Sp = Sp_mag(Sp_hz(self.fields[0], self.fields[1],\
+                                      self.fields[2]))
                     
             elif pol == 'ez':
                 #Calculate fields if needed
                 if self.fields == []:
-                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_ez(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Hx, Hy, Ez = simulation.solve(src)
                     self.fields = [Hx, Hy, Ez]
                     
                     #Plot magnitude of Poynting Vector if plot
                 if plot:
-                    Sp = Sp_mag(Sp_ez(self.fields[0], self.fields[1], self.fields[2]))
+                    Sp = Sp_mag(Sp_ez(self.fields[0], self.fields[1],\
+                                      self.fields[2]))
                     
             else:
-                raise RuntimeError('The polarization associated with this source is\
-                               not valid.')
+                raise RuntimeError('The polarization associated with this '+\
+                                   'source is not valid.')
                     
             if plot:
                 cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
@@ -1403,9 +1457,11 @@ class PMMI:
             flux_out.append(flux_tot)
                 
         if plot:
-            cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
-                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
-                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+            cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T,\
+                    cmap='RdGy',\
+                        vmin = np.min(self.design_region*np.real(epsr_opt)),\
+                        vmax = np.max(np.real(epsr_opt))),\
+                                ax=ax[len(src_names)])
             cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
             ax[len(src_names)].axes.xaxis.set_visible(False)
             ax[len(src_names)].axes.yaxis.set_visible(False)
@@ -1415,17 +1471,17 @@ class PMMI:
         return flux_out
     
     
-    def Get_Trans_Denom(self, src_names, prb, opt = False, rho = None, savepath = 'none.pdf',\
-                    plasma = False, plot = True, wp_max = 0, gamma = 0,\
-                    uniform = True, bounds = []):
+    def Get_Trans_Denom(self, src_names, prb, opt = False, rho = None,\
+                        savepath = 'none.pdf', plasma = False, plot = True,\
+                        wp_max = 0, gamma = 0, uniform = True, bounds = []):
         """
         Simulate device given optimal parameters and evaluate the S-parameters
         between two given source slices.
         
         Args:
             rho: optimal parameters
-            src_names: names of sources in sources dictionary that will be active
-                      in the simulation.
+            src_names: names of sources in sources dictionary that will be
+                       active in the simulation.
             denom: denominator for S-params
             prb: [[np.array([[prb_loc_begin],[prb_loc_end]]), u_prb]]
                 u_prb: unit vector in direction of source propagation
@@ -1452,22 +1508,25 @@ class PMMI:
                 epsr_opt = self.epsr
             else:
                 if plasma:
-                    epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max, gamma,\
-                                                        uniform)
+                    epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max,\
+                                                            gamma, uniform)
                 else:
                     epsr_opt = self.Rho_Parameterization(rho, bounds)
 
             if pol == 'hz':
                 #Calculate fields if needed
                 if self.fields == []:
-                    simulation = fdfd_hz(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_hz(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Ex, Ey, Hz = simulation.solve(src)
                     self.fields = [Ex, Ey, Hz]
                 
                 #Plot magnitude of Poynting Vector if plot
                 if plot:
-                    Sp = Sp_mag(Sp_hz(self.fields[0], self.fields[1], self.fields[2]))
-                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
+                    Sp = Sp_mag(Sp_hz(self.fields[0], self.fields[1],\
+                                      self.fields[2]))
+                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'),\
+                                        ax=ax[i])
                     cbar.set_ticks([])
                     cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
                     ax[i].axes.xaxis.set_visible(False)
@@ -1476,31 +1535,35 @@ class PMMI:
             elif pol == 'ez':
                 #Calculate fields if needed
                 if self.fields == []:
-                    simulation = fdfd_ez(w, self.dl, epsr_opt, [self.Npml, self.Npml])
+                    simulation = fdfd_ez(w, self.dl, epsr_opt,\
+                                         [self.Npml, self.Npml])
                     Hx, Hy, Ez = simulation.solve(src)
                     self.fields = [Hx, Hy, Ez]
                     
                     #Plot magnitude of Poynting Vector if plot
                 if plot:
-                    Sp = Sp_mag(Sp_ez(self.fields[0], self.fields[1], self.fields[2]))
-                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'), ax=ax[i])
+                    Sp = Sp_mag(Sp_ez(self.fields[0], self.fields[1],\
+                                      self.fields[2]))
+                    cbar = plt.colorbar(ax[i].imshow(Sp.T, cmap='magma'),\
+                                        ax=ax[i])
                     cbar.set_ticks([])
                     cbar.ax.set_ylabel('Poynting Flux', fontsize=font)
                     ax[i].axes.xaxis.set_visible(False)
                     ax[i].axes.yaxis.set_visible(False)
             else:
-                raise RuntimeError('The polarization associated with this source is\
-                               not valid.')
+                raise RuntimeError("The polarization associated with this "+\
+                                   "source is not valid.")
                     
             self.Add_Probe(prb[i][0][0,:], prb[i][0][1,:], w_src, 'mask', pol,\
                            thin = True)
             denoms.append(Calc_Transmission(self.fields[0], self.fields[1],\
-                    self.fields[2], pol, 1, self.probes.pop('mask')[3], prb[i][1]))
+                    self.fields[2], pol, 1, self.probes.pop('mask')[3],\
+                    prb[i][1]))
                 
         if plot:
-            cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T, cmap='RdGy',\
-                            vmin = np.min(self.design_region*np.real(epsr_opt)),\
-                            vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
+            cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T,\
+              cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+              vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
             cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
             ax[len(src_names)].axes.xaxis.set_visible(False)
             ax[len(src_names)].axes.yaxis.set_visible(False)
@@ -1513,7 +1576,8 @@ class PMMI:
     ###########################################################################
     ## Parameterization Functions
     ###########################################################################
-    def Mask_Combine_Rho(self, train_epsr, elem_locs, bounds, eps_bg_des, Complex = False):
+    def Mask_Combine_Rho(self, train_epsr, elem_locs, bounds, eps_bg_des,\
+                         Complex = False):
         """
         Utility function for combining the design region with its trainable 
         elements and the static region
@@ -1525,23 +1589,30 @@ class PMMI:
             elem_locs: similar to train_epsr but just an element selector
             bounds: Array containing the upper and lower bounds of the perm of
             the trainable elements
-            eps_bg_des: Float, permittivity of the background in the design region
+            eps_bg_des: Float, permittivity of the background in the design
+                        region
         """
         if Complex:
-            train = (bounds[1] - bounds[0])*train_epsr*(elem_locs!=0).astype(np.complex128)\
+            train = (bounds[1] - bounds[0])*train_epsr*\
+                    (elem_locs!=0).astype(np.complex128)\
                     + bounds[0]*(elem_locs!=0).astype(np.complex128)
-            design = eps_bg_des*self.design_region*(elem_locs==0).astype(np.complex128)
-            bckgd = self.static_elems*(self.design_region==0).astype(np.complex128)
+            design = eps_bg_des*self.design_region*\
+                    (elem_locs==0).astype(np.complex128)
+            bckgd = self.static_elems*\
+                    (self.design_region==0).astype(np.complex128)
         else:
-            train = (bounds[1] - bounds[0])*train_epsr*(elem_locs!=0).astype(np.float)\
-                    + bounds[0]*(elem_locs!=0).astype(np.float)
-            design = eps_bg_des*self.design_region*(elem_locs==0).astype(np.float)
+            train = (bounds[1] - bounds[0])*train_epsr*\
+                        (elem_locs!=0).astype(np.float)\
+                        + bounds[0]*(elem_locs!=0).astype(np.float)
+            design = eps_bg_des*self.design_region*\
+                        (elem_locs==0).astype(np.float)
             bckgd = self.static_elems*(self.design_region==0).astype(np.float)
 
         return train + design + bckgd
 
 
-    def Mask_Combine_Rho_wp(self, train_epsr, elem_locs, eps_bg_des, Complex = False):
+    def Mask_Combine_Rho_wp(self, train_epsr, elem_locs, eps_bg_des,\
+                            Complex = False):
         """
         Utility function for combining the design region with its trainable 
         elements and the static region when mapping directly from wp values
@@ -1552,15 +1623,19 @@ class PMMI:
             their scaled epsilon values are present.
             elem_locs: similar to train_epsr but just an element selector
             w_src: Source frequency
-            eps_bg_des: Float, permittivity of the background in the design region
+            eps_bg_des: Float, permittivity of the background in the design 
+                        region
         """
         if Complex:
             train = (train_epsr)*(elem_locs!=0).astype(np.complex128)
-            design = eps_bg_des*self.design_region*(elem_locs==0).astype(np.complex128)
-            bckgd = self.static_elems*(self.design_region==0).astype(np.complex128)
+            design = eps_bg_des*self.design_region*\
+                        (elem_locs==0).astype(np.complex128)
+            bckgd = self.static_elems*\
+                        (self.design_region==0).astype(np.complex128)
         else:
             train = (train_epsr)*(elem_locs!=0).astype(np.float)
-            design = eps_bg_des*self.design_region*(elem_locs==0).astype(np.float)
+            design = eps_bg_des*self.design_region*\
+                        (elem_locs==0).astype(np.float)
             bckgd = self.static_elems*(self.design_region==0).astype(np.float)
 
         return train + design + bckgd
@@ -1587,7 +1662,8 @@ class PMMI:
         return train_epsr, elem_locations
 
 
-    def Scale_Rho_wp(self, rho, w_src, wp_max = 0, gamma = 0, pmat = np.empty(0)):
+    def Scale_Rho_wp(self, rho, w_src, wp_max = 0, gamma = 0,\
+                     pmat = np.empty(0)):
         """
         Uses the Drude dispersion along with an arctan barrier to map the
         parameters to relative permittivity
@@ -1650,17 +1726,20 @@ class PMMI:
             wp2p = npa.abs(wp2 + npa.multiply(wp2, pmat))
             for r in range(self.rod_shells):
                 rho_shell = npa.subtract(1, npa.divide(npa.multiply(wp2p,\
-                            4*((4.6/6.5)**2)*(1-r**6/(self.rod_shells-1)**6)/3), denom))
+                        4*((4.6/6.5)**2)*(1-r**6/(self.rod_shells-1)**6)/3),\
+                        denom))
                 for i in range(len(rho_shell)):
-                    train_elem = self.train_elems[i*self.rod_shells + r].toarray()
+                    train_elem = self.train_elems[i*self.rod_shells+r].toarray()
                     train_epsr = train_epsr + rho_shell[i]*train_elem
                     elem_locations += train_elem
         else:
             for r in range(self.rod_shells):
-                rho_shell = npa.subtract(1, npa.divide(npa.multiply(npa.power(npa.abs(rho), 2),\
-                            4*((4.6/6.5)**2)*(1-r**6/(self.rod_shells-1)**6)/3), denom))
+                rho_shell = npa.subtract(1,\
+                        npa.divide(npa.multiply(npa.power(npa.abs(rho), 2),\
+                        4*((4.6/6.5)**2)*(1-r**6/(self.rod_shells-1)**6)/3),\
+                        denom))
                 for i in range(len(rho_shell)):
-                    train_elem = self.train_elems[i*self.rod_shells + r].toarray()
+                    train_elem = self.train_elems[i*self.rod_shells+r].toarray()
                     train_epsr = train_epsr + rho_shell[i]*train_elem
                     elem_locations += train_elem
         
@@ -1696,17 +1775,20 @@ class PMMI:
             wp2p = npa.abs(wp2 + npa.multiply(wp2, pmat))
             for r in range(self.rod_shells):
                 rho_shell = npa.subtract(1, npa.divide(npa.multiply(wp2p,\
-                            (J01**2/2.49691834)*sp.jn(0, J01*r/(self.rod_shells-1))), denom))
+                      (J01**2/2.49691834)*sp.jn(0, J01*r/(self.rod_shells-1))),\
+                      denom))
                 for i in range(len(rho_shell)):
-                    train_elem = self.train_elems[i*self.rod_shells + r].toarray()
+                    train_elem = self.train_elems[i*self.rod_shells+r].toarray()
                     train_epsr = train_epsr + rho_shell[i]*train_elem
                     elem_locations += train_elem
         else:
             for r in range(self.rod_shells):
-                rho_shell = npa.subtract(1, npa.divide(npa.multiply(npa.power(npa.abs(rho), 2),\
-                            (J01**2/2.49691834)*sp.jn(0, J01*r/(self.rod_shells-1))), denom))
+                rho_shell = npa.subtract(1,\
+                      npa.divide(npa.multiply(npa.power(npa.abs(rho), 2),\
+                      (J01**2/2.49691834)*sp.jn(0, J01*r/(self.rod_shells-1))),\
+                      denom))
                 for i in range(len(rho_shell)):
-                    train_elem = self.train_elems[i*self.rod_shells + r].toarray()
+                    train_elem = self.train_elems[i*self.rod_shells+r].toarray()
                     train_epsr = train_epsr + rho_shell[i]*train_elem
                     elem_locations += train_elem
         
@@ -1714,7 +1796,8 @@ class PMMI:
         return train_epsr, elem_locations
 
 
-    def Eps_to_Rho(self, epsr, bounds=[], plasma = False, w_src = 1, wp_max = 0):
+    def Eps_to_Rho(self, epsr, bounds=[], plasma = False, w_src = 1,\
+                   wp_max = 0):
         """
         Returns parameters associated with array of values of epsr
 
@@ -1731,7 +1814,8 @@ class PMMI:
             return npa.tan(((epsr-bounds[0])/(bounds[1]-bounds[0])-0.5)*np.pi)
 
     
-    def Rho_to_Eps(self, rho, bounds=[], plasma = False, w_src = 1, wp_max = 0, gamma = 0):
+    def Rho_to_Eps(self, rho, bounds=[], plasma = False, w_src = 1, wp_max = 0,\
+                   gamma = 0):
         """
         Returns permittivity values associated with a parameter matrix
 
@@ -1757,8 +1841,9 @@ class PMMI:
             w_src: source frequency
         """
         if np.max(epsr) >= 1:
-            raise RuntimeError("One or more of the permittivity values is invalid.\
-                    Choose relative permittivity values less than 1.")  
+            raise RuntimeError("One or more of the permittivity values is "+\
+                               "invalid. Choose relative permittivity values "+\
+                               "less than 1.")  
         if wp_max > 0:
             return npa.tan((w_src**2*(1-epsr))**0.5*(1.5/wp_max))*(wp_max/7.5)
         else:
@@ -1799,7 +1884,8 @@ class PMMI:
 
 
     def Rho_Parameterization_wp(self, rho, w_src, wp_max = 0, gamma = 0,\
-                                uniform = True, profile = 'j0', eps_bg_des = 1, pmat = np.empty(0)):
+                                uniform = True, profile = 'j0', eps_bg_des = 1,\
+                                pmat = np.empty(0)):
         """
         Apply scaling/parameterization and create a permittivity matrix when
         mapping plasma frequency to permittivity
@@ -1814,17 +1900,20 @@ class PMMI:
         if gamma > 0:
             Complex = True
         if uniform:
-            train_epsr, elem_locs = self.Scale_Rho_wp(rho, w_src, wp_max, gamma,\
-                                                      pmat)
+            train_epsr, elem_locs = self.Scale_Rho_wp(rho, w_src, wp_max,\
+                                                      gamma, pmat)
         else:
             if profile == '6':
-                train_epsr, elem_locs = self.Scale_Rho_wp_polynomial(rho, w_src, wp_max,\
+                train_epsr, elem_locs = self.Scale_Rho_wp_polynomial(rho,\
+                                                                w_src, wp_max,\
                                                                 gamma, pmat)
             if profile == 'j0':
-                train_epsr, elem_locs = self.Scale_Rho_wp_bessel(rho, w_src, wp_max,\
+                train_epsr, elem_locs = self.Scale_Rho_wp_bessel(rho, w_src,\
+                                                                wp_max,\
                                                                 gamma, pmat)
 
-        return self.Mask_Combine_Rho_wp(train_epsr, elem_locs, eps_bg_des, Complex = Complex)
+        return self.Mask_Combine_Rho_wp(train_epsr, elem_locs, eps_bg_des,\
+                                        Complex = Complex)
 
 
     def Pmat(self, rho, perturb):
@@ -1899,7 +1988,8 @@ class PMMI:
             _, _, E1 = sim1.solve(self.sources[src_1][0])
             _, _, E2 = sim2.solve(self.sources[src_2][0])
         else:
-            raise RuntimeError("The two sources must have the same polarization.")
+            raise RuntimeError("The two sources must have the same "+\
+                               "polarization.")
 
         E01 = mode_overlap(E1, self.probes[prb_1][0])
         E02 = mode_overlap(E2, self.probes[prb_2][0])
@@ -2060,7 +2150,8 @@ class PMMI:
         Args:
             Rho: Initial parameters
             src: Key for the source in the sources dict.
-            prb: Key for probe (slice in desired output waveguide) in the probes dict.
+            prb: Key for probe (slice in desired output waveguide) in the 
+                 probes dict.
             prbl: Key for probe at slice that you want to penalize.
             alpha: Adam learning rate.
             nepochs: Number of training epochs.
@@ -2207,7 +2298,8 @@ class PMMI:
             _, _, E1 = sim1.solve(self.sources[src_1][0])
             _, _, E2 = sim2.solve(self.sources[src_2][0])
         else:
-            raise RuntimeError("The two sources must have the same polarization.")
+            raise RuntimeError("The two sources must have the same "+\
+                               "polarization.")
 
         if E01 == None:
             E01 = mode_overlap(E1, self.probes[prb_1][0])
@@ -2239,14 +2331,17 @@ class PMMI:
             sim1.eps_r = epsr1
             sim2.eps_r = epsr2
 
-            if self.sources[src_1][2] == 'hz' and self.sources[src_2][2] == 'hz':
+            if self.sources[src_1][2] == 'hz' and\
+                    self.sources[src_2][2] == 'hz':
                 E1, _, _ = sim1.solve(self.sources[src_1][0])
                 E2, _, _ = sim2.solve(self.sources[src_2][0])
-            elif self.sources[src_1][2] == 'ez' and self.sources[src_2][2] == 'ez':
+            elif self.sources[src_1][2] == 'ez' and\
+                    self.sources[src_2][2] == 'ez':
                 _, _, E1 = sim1.solve(self.sources[src_1][0])
                 _, _, E2 = sim2.solve(self.sources[src_2][0])
             else:
-                raise RuntimeError("The two sources must have the same polarization.")
+                raise RuntimeError("The two sources must have the same "+\
+                                   "polarization.")
 
             return (mode_overlap(E1, self.probes[prb_1][0])/E01)*\
                     (mode_overlap(E2, self.probes[prb_2][0])/E02)
@@ -2322,7 +2417,8 @@ class PMMI:
             _, _, E1 = sim1.solve(self.sources[src_1][0])
             _, _, E2 = sim2.solve(self.sources[src_2][0])
         else:
-            raise RuntimeError("The two sources must have the same polarization.")
+            raise RuntimeError("The two sources must have the same "+\
+                               "polarization.")
 
         if E01 == None:
             E01 = mode_overlap(E1, self.probes[prb_1][0])
@@ -2358,14 +2454,17 @@ class PMMI:
             sim1.eps_r = epsr1
             sim2.eps_r = epsr2
 
-            if self.sources[src_1][2] == 'hz' and self.sources[src_2][2] == 'hz':
+            if self.sources[src_1][2] == 'hz' and\
+                    self.sources[src_2][2] == 'hz':
                 E1, _, _ = sim1.solve(self.sources[src_1][0])
                 E2, _, _ = sim2.solve(self.sources[src_2][0])
-            elif self.sources[src_1][2] == 'ez' and self.sources[src_2][2] == 'ez':
+            elif self.sources[src_1][2] == 'ez' and\
+                    self.sources[src_2][2] == 'ez':
                 _, _, E1 = sim1.solve(self.sources[src_1][0])
                 _, _, E2 = sim2.solve(self.sources[src_2][0])
             else:
-                raise RuntimeError("The two sources must have the same polarization.")
+                raise RuntimeError("The two sources must have the same "+\
+                                   "polarization.")
 
             return (mode_overlap(E1, self.probes[prb_1][0])/E01)*\
                     (mode_overlap(E2, self.probes[prb_2][0])/E02)-\
@@ -2419,7 +2518,8 @@ class PMMI:
             param_out: str, param output directory
             Ec0n, E10n, etc.: Field normalization values
         """
-        #Begin by running sim with initial parameters to get normalization consts
+        #Begin by running sim with initial parameters to get normalization 
+        #consts
         if plasma:
             epsr_init = self.Rho_Parameterization_wp(Rho,\
                         self.sources[src_1][1]*self.a/2/np.pi/c, wp_max, gamma,\
@@ -2433,7 +2533,8 @@ class PMMI:
             Ec, _, _ = sim.solve(self.sources[src_c][0])
             E1, _, _ = sim.solve(self.sources[src_c][0]+self.sources[src_1][0])
             E2, _, _ = sim.solve(self.sources[src_c][0]+self.sources[src_2][0])
-            E12, _, _ = sim.solve(self.sources[src_c][0]+self.sources[src_1][0]+\
+            E12, _, _ = sim.solve(self.sources[src_c][0]+\
+                                  self.sources[src_1][0]+\
                                   self.sources[src_2][0])
         elif self.sources[src_1][2] == 'ez' and self.sources[src_2][2] == 'ez':
             sim = fdfd_ez(self.sources[src_1][1], self.dl, epsr_init,\
@@ -2441,10 +2542,12 @@ class PMMI:
             _, _, Ec = sim.solve(self.sources[src_c][0])
             _, _, E1 = sim.solve(self.sources[src_c][0]+self.sources[src_1][0])
             _, _, E2 = sim.solve(self.sources[src_c][0]+self.sources[src_2][0])
-            _, _, E12 = sim.solve(self.sources[src_c][0]+self.sources[src_1][0]+\
+            _, _, E12 = sim.solve(self.sources[src_c][0]+\
+                                  self.sources[src_1][0]+\
                                   self.sources[src_2][0])
         else:
-            raise RuntimeError("The two sources must have the same polarization.")
+            raise RuntimeError("The two sources must have the same "+\
+                               "polarization.")
 
         if Ec0n == None:
             Ec0n = mode_overlap(Ec, self.probes[prb_n][0])
@@ -2491,20 +2594,29 @@ class PMMI:
                 epsr = self.Rho_Parameterization(rho, bounds)
             sim.eps_r = epsr
 
-            if self.sources[src_1][2] == 'hz' and self.sources[src_2][2] == 'hz':
+            if self.sources[src_1][2] == 'hz' and\
+                    self.sources[src_2][2] == 'hz':
                 Exc, _, _ = sim.solve(self.sources[src_c][0])
-                Ex1, _, _ = sim.solve(self.sources[src_c][0]+self.sources[src_1][0])
-                Ex2, _, _ = sim.solve(self.sources[src_c][0]+self.sources[src_2][0])
-                Ex12, _, _ = sim.solve(self.sources[src_c][0]+self.sources[src_1][0]+\
+                Ex1, _, _ = sim.solve(self.sources[src_c][0]+\
+                                      self.sources[src_1][0])
+                Ex2, _, _ = sim.solve(self.sources[src_c][0]+\
+                                      self.sources[src_2][0])
+                Ex12, _, _ = sim.solve(self.sources[src_c][0]+\
+                                       self.sources[src_1][0]+\
                                        self.sources[src_2][0])
-            elif self.sources[src_1][2] == 'ez' and self.sources[src_2][2] == 'ez':
+            elif self.sources[src_1][2] == 'ez' and\
+                    self.sources[src_2][2] == 'ez':
                 _, _, Ec = sim.solve(self.sources[src_c][0])
-                _, _, E1 = sim.solve(self.sources[src_c][0]+self.sources[src_1][0])
-                _, _, E2 = sim.solve(self.sources[src_c][0]+self.sources[src_2][0])
-                _, _, E12 = sim.solve(self.sources[src_c][0]+self.sources[src_1][0]+\
+                _, _, E1 = sim.solve(self.sources[src_c][0]+\
+                                     self.sources[src_1][0])
+                _, _, E2 = sim.solve(self.sources[src_c][0]+\
+                                     self.sources[src_2][0])
+                _, _, E12 = sim.solve(self.sources[src_c][0]+\
+                                      self.sources[src_1][0]+\
                                       self.sources[src_2][0])
             else:
-                raise RuntimeError("The two sources must have the same polarization.")
+                raise RuntimeError("The two sources must have the same "+\
+                                   "polarization.")
 
             if logic == 'and':
                 off = mode_overlap(Ec, self.probes[prb_n][0])/Ec0n -\
@@ -2579,12 +2691,16 @@ class PMMI:
             nu_col: supposed collision frequency in c/a units
         """
         print("The lattice frequency is: ", c/self.a/(10**9)," GHz")
-        print("The source frequency is: ", self.sources[src][1]/2/np.pi/(10**9), " GHz")
-        print("The plasma frequencies (GHz, corresponding to average density in discharge) necessary to achieve this design are:")
+        print("The source frequency is: ",self.sources[src][1]/2/np.pi/(10**9),\
+              " GHz")
+        print("The plasma frequencies (GHz, corresponding to average density "+\
+              "in discharge) necessary to achieve this design are:")
         if wp_max > 0:
-            fp = (wp_max/1.5)*npa.arctan(npa.abs(rho)/(wp_max/7.5))*c/self.a/(10**9)
+            fp = (wp_max/1.5)*\
+                npa.arctan(npa.abs(rho)/(wp_max/7.5))*c/self.a/(10**9)
             for i in range(len(self.train_elem_locs)):
-                print('Rod at ', self.train_elem_locs[i], ": ", fp[i])
+                print('Rod '+str(i)+' at ', self.train_elem_locs[i], ": ",\
+                      fp[i])
         else:
             print(npa.abs(rho)*c/self.a/(10**9))
 
