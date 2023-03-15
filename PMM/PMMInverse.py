@@ -479,7 +479,7 @@ class PMMI:
             print(e)
             src = 0
         finally:
-            self.sources[src_name] = (src, omega, pol, mask)
+            self.sources[src_name] = (src, omega, pol, mask, (src_x,src_y))
         
 
     def Add_Probe(self, xy_begin, xy_end, w, prb_name, pol, thin = False):
@@ -521,7 +521,7 @@ class PMMI:
             print(e)
             prb = 0
         finally:
-            self.probes[prb_name] = (prb, omega, pol, mask)
+            self.probes[prb_name] = (prb, omega, pol, mask, (prb_x,prb_y))
         
 
     def Rod_Array(self, r, xy_start, rod_eps, d_x = 1, d_y = 1):
@@ -1232,6 +1232,62 @@ class PMMI:
 
         return ax
     
+
+    def Viz_Domain_opt(self, rho, savepath, w=0, src_names = [], prb_names = [],\
+                        bounds = [], plasma = False, show = True, mult = False,\
+                        wp_max = 0, gamma = 0, uniform = True, perturb = 0,\
+                        amp = 1):
+        """
+        Solve and visualize an optimized simulation with certain sources active
+        
+        Args:
+            rho: optimal parameters
+            w: Source frequency
+            src_names: list of strings that indicate which sources you'd like 
+                       to see the location of in the domain
+            prb_names: list of strings that indicate which probes you'd like 
+                       to see the location of in the domain
+            savepath = save path
+            bounds: Upper and lower bounds for parameters
+            plasma: bool specifying if params map to wp
+            show: bool determining if the plot is shown
+            mult: bool determining if multiple sources are activated at once
+            perturb: sigma value for gaussian perturbation of rods. 0.05 would
+                     result in random perturbations of each element of ~5%.
+            amp: turn up fields outside of input port
+        """
+        fig, ax = plt.subplots(1, 1, constrained_layout=False, figsize=(5,4))
+
+        if perturb > 0:
+            pmat = self.Pmat(rho, perturb)
+        else:
+            pmat = np.empty(0)
+
+        if plasma:
+            epsr_opt = self.Rho_Parameterization_wp(rho, w, wp_max, gamma,\
+                                                    uniform, pmat = pmat)
+        else:
+            epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
+
+        cbar = plt.colorbar(ax.imshow(np.real(epsr_opt).T,\
+          cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+          vmax = np.max(np.real(epsr_opt))), ax=ax)
+        
+        for src in src_names:
+            x, y = self.sources[src][4]
+            ax.plot(x, y, color='blue', linewidth = 1)
+
+        for prb in prb_names:
+            x, y = self.probes[prb][4]
+            ax.plot(x, y, color='red', linewidth = 1)
+
+        cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
+        ax.axes.xaxis.set_visible(False)
+        ax.axes.yaxis.set_visible(False)
+        plt.savefig(savepath, dpi=1500)
+
+        if show:
+            plt.show()
     
     ###########################################################################
     ## Simulation Tools

@@ -170,7 +170,7 @@ class PMMInSitu:
         """
         self.Set_Bulb_VI(addr, 24, 10, verbose)
         self.Activate_Bulb(addr)
-        time.sleep(0.5)
+        time.sleep(0.25)
         self.Set_Bulb_VI(addr, V, I, verbose)
         
         if t > 0.005:
@@ -191,6 +191,25 @@ class PMMInSitu:
                 self.Set_Bulb_VI(addr, addr/100, 0)
 
         self.Activate_Bulb('all')
+
+        return
+
+
+    def Config_Warmup(self, T = 10):
+        """
+        Runs the standard warm-up procedure for the bulb array
+        """
+        for addr in self.bulbs:
+            if addr != 'all':
+                self.Set_Bulb_VI(addr, addr/100, 0)
+        for i in range(T):
+            print("Warmup minute", i+1)
+            self.Set_Bulb_VI('all', 24, 10, verbose = False)
+            time.sleep(0.5)
+            self.Activate_Bulb('all')
+            time.sleep(15)
+            self.Deactivate_Bulb('all')
+            time.sleep(44.3)
 
         return
 
@@ -223,33 +242,133 @@ class PMMInSitu:
         return
 
 
-    def Scale_Rho_ne(self, rho, w_src, wp_max):
+    def Scale_Rho_ne(self, rho, wp_max):
         """
-        Uses the Drude dispersion along with an arctan barrier to map optimal
-        parameters from the computational inverse design library to plasma
-        density values (dimensionalized, m^-3)
+        Uses an arctan barrier to map optimal parameters from the computational 
+        inverse design library to plasma density values (dimensionalized, m^-3)
 
         Args:
             rho: Parameters being optimized
-            w_src: Non-dimensionalized operating frequency
             wp_max: Approximate maximum non-dimensionalized plasma frequency
-            gamma: Non-dimensionalized collision frequency
         """
         
         wp = (wp_max/1.5)*npa.arctan(rho/(wp_max/7.5))
-        wp_dim = wp*c/self.a
+        wp_dim = wp*c/self.a*2*np.pi
         ne = wp_dim**2*me*epso/e**2
 
         return ne
 
 
-    def Voltage_BOLSIG(self, ne):
+    def Scale_Rho_fp(self, rho, wp_max):
         """
-        Takes a dimensionalized plasma density and maps it to a voltage setting
+        Uses an arctan barrier to map optimal parameters from the computational 
+        inverse design library to plasma frequency values (dimensionalized, GHz)
 
         Args:
-            ne: plasma density (m^-3)
+            rho: Parameters being optimized
+            wp_max: Approximate maximum non-dimensionalized plasma frequency
         """
+        
+        fp = (wp_max/1.5)*np.arctan(rho/(wp_max/7.5))
+        fp_dim = fp*c/self.a/10**9
+
+        return fp_dim
+
+
+    def BulbSetting_BOLSIG(self, fp, knob = 0.5, scale = 1.0):
+        """
+        Maps plasma frequency value in GHz to a current and voltage setting for
+        the DC power supplies
+
+        Args:
+            fp: plasma frequency in GHz (NOT rad/s)
+            knob: constant to tune experimental fit to lower and upper range of
+                  BOLSIG cases. knob = 0 is low end and knob = 1 is high end.
+            scale: Parameter that scales the overall plasma frequency values.
+        """
+        k = knob
+        S = scale
+
+        if fp/S < 0.21:
+            return (0,0)
+        elif fp/S >= 0.21 and fp/S < 0.42:
+            I = (0.42/S-(0.03*k-0.47))**(1/(0.8-0.1*k))/(3.5+8.7*k) #A
+            return (30, I)
+
+        elif fp/S >= 0.42 and fp/S < 2.75 + 0.95*k:
+            I = (fp/S-(0.03*k-0.47))**(1/(0.8-0.1*k))/(3.5+8.7*k) #A
+            return (30, I)
+
+        elif fp/S >= 2.75 + 0.95*k and fp/S <= 11 + 4.6*k:
+            V = (fp/S+(5.75+1.1*k))**(1/(0.44+0.04*k))/(20+1.5*k)-0.5
+            return (V, 10)
+
+        elif fp/S > 11 + 4.6*k:
+            return (30,10)
+
+
+    def Rho_to_Bulb(self, rho, wp_max, knob = 0.5, scale = 1.0):
+        """
+        Accepts optimal parameter array (MUST BE FLATTENED) and returns (V,I)
+        for each bulb.
+
+        Args:
+            rho: optimal parameter array (flattened) from PMMInverse library
+            wp_max: Approximate maximum non-dimensionalized plasma frequency
+            knob: constant to tune experimental fit to lower and upper range of
+                  BOLSIG cases. knob = 0 is low end and knob = 1 is high end.
+            scale: Parameter that scales the overall plasma frequency values.
+        """
+        BulbSet = np.zeros((rho.shape[0],2))
+        fp = self.Scale_Rho_fp(rho, wp_max)
+
+        for i in range(rho.shape[0]):
+            BulbSet[i,:] = self.BulbSetting_BOLSIG(fp[i], knob, scale)
+
+        return BulbSet
+
+
+    def ArraySet_Rho(self, rho, wp_max, knob = 0.5, scale = 1.0):
+        """
+        Accepts optimal parameter array (MUST BE FLATTENED) and activates the
+        bulb array accordingly.
+
+        Args:
+            rho: optimal parameter array (flattened) from PMMInverse library
+            wp_max: Approximate maximum non-dimensionalized plasma frequency
+            knob: constant to tune experimental fit to lower and upper range of
+                  BOLSIG cases. knob = 0 is low end and knob = 1 is high end.
+            scale: Parameter that scales the overall plasma frequency values.
+        """
+        BulbSet = self.Rho_to_Bulb(rho, wp_max, knob, scale)
+
+        self.Set_Bulb_VI('all', 24, 10, verbose = False)
+        time.sleep(0.005)
+        try:
+            self.Activate_Bulb('all')
+        except:
+            print('Trouble activating bulbs, trying one more time')
+            time.sleep(1)
+            try:
+                self.Activate_Bulb('all')
+            except:
+                raise RuntimeError("Failed to activate bulbs twice, check"+\
+                        " config.")
+
+        for i in range(rho.shape[0]):
+            try:
+                self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
+                time.sleep(0.005)
+            except:
+                print('Trouble setting bulb '+str(i+1)+', trying one more time')
+                time.sleep(1)
+                try:
+                    self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
+                except:
+                    raise RuntimeError("Failed to set"+\
+                            " bulb "+str(i+1)+" twice. Check config.")
+
+        return
 
 
     def Read_Params(self, readpath):
@@ -260,3 +379,13 @@ class PMMInSitu:
             readpath: read path. Must be csv.
         """
         return np.loadtxt(readpath, delimiter=",")
+
+
+    def f_GHz(self, f):
+        """
+        Returns dimensionalized frequency in GHz
+
+        Args:
+            f: frequency in a units
+        """
+        return f*c/self.a/10**9
