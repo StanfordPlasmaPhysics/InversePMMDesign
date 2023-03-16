@@ -454,10 +454,16 @@ class PMMI:
         XY_beg = (np.rint(xy_begin*self.res)).astype(int)
         XY_end = (np.rint(xy_end*self.res)).astype(int)
         if XY_beg[0] == XY_end[0]:
-            src_y = (np.arange(XY_beg[1],XY_end[1])).astype(int)
+            if XY_beg[1] < XY_end[1]:
+                src_y = (np.arange(XY_beg[1],XY_end[1])).astype(int)
+            else:
+                src_y = (np.arange(XY_end[1],XY_beg[1])).astype(int)
             src_x = XY_beg[0]*np.ones(src_y.shape, dtype=int)
         elif XY_beg[1] == XY_end[1]:
-            src_x = (np.arange(XY_beg[0], XY_end[0])).astype(int)
+            if XY_beg[0] < XY_end[0]:
+                src_x = (np.arange(XY_beg[0], XY_end[0])).astype(int)
+            else:
+                src_x = (np.arange(XY_end[0], XY_beg[0])).astype(int)
             src_y = XY_beg[1]*np.ones(src_x.shape, dtype=int)
         else:
             if thin:
@@ -496,10 +502,16 @@ class PMMI:
         XY_beg = (np.rint(xy_begin*self.res)).astype(int)
         XY_end = (np.rint(xy_end*self.res)).astype(int)
         if XY_beg[0] == XY_end[0]:
-            prb_y = (np.arange(XY_beg[1],XY_end[1])).astype(int)
+            if XY_beg[1] < XY_end[1]:
+                prb_y = (np.arange(XY_beg[1],XY_end[1])).astype(int)
+            else:
+                prb_y = (np.arange(XY_end[1],XY_beg[1])).astype(int)
             prb_x = XY_beg[0]*np.ones(prb_y.shape, dtype=int)
         elif XY_beg[1] == XY_end[1]:
-            prb_x = (np.arange(XY_beg[0], XY_end[0])).astype(int)
+            if XY_beg[0] < XY_end[0]:
+                prb_x = (np.arange(XY_beg[0], XY_end[0])).astype(int)
+            else:
+                prb_x = (np.arange(XY_end[0], XY_beg[0])).astype(int)
             prb_y = XY_beg[1]*np.ones(prb_x.shape, dtype=int)
         else:
             if thin:
