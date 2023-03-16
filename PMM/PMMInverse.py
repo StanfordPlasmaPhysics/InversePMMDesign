@@ -2432,8 +2432,8 @@ class PMMI:
         return rho_optimum.reshape(Rho.shape), obj, E01, E02
 
 
-    def Optimize_Multiplexer_Penalize(self, Rho, src_1, src_2, prb_1, prb_2,\
-                             prbs_l = [], alpha, nepochs, bounds = [],\
+    def Optimize_Multiplexer_Penalize(self, Rho, alpha, nepochs, src_1, src_2,\
+                             prb_1, prb_2, prbs_l = [], bounds = [],\
                              plasma = False, wp_max = 0, gamma = 0,\
                              uniform = True, param_evolution = False,\
                              param_out = None, E01 = None, E02 = None,\
