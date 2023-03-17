@@ -1701,10 +1701,10 @@ class PMMI:
             bckgd = self.static_elems*\
                         (self.design_region==0).astype(np.complex128)
         else:
-            train = (train_epsr)*(elem_locs!=0).astype(np.float)
+            train = (train_epsr)*(elem_locs!=0).astype(np.float64)
             design = eps_bg_des*self.design_region*\
-                        (elem_locs==0).astype(np.float)
-            bckgd = self.static_elems*(self.design_region==0).astype(np.float)
+                        (elem_locs==0).astype(np.float64)
+            bckgd = self.static_elems*(self.design_region==0).astype(np.float64)
 
         return train + design + bckgd
 
@@ -2113,6 +2113,26 @@ class PMMI:
             return E0
 
 
+    def Flip_y_opt(self, rho):
+        """
+        Flip design region along the y-direction. Design region must be
+        centered at y=0
+        
+        Args:
+            rho: Design parameters
+        """
+        rho_new = np.zeros(rho.shape[0])
+        for i in range(rho.shape[0]):
+            y = self.train_elem_locs[i][1]-self.ny/2
+            x = self.train_elem_locs[i][0]
+            for j in range(rho.shape[0]):
+                if self.train_elem_locs[j][1] - self.ny/2 == -y\
+                        and self.train_elem_locs[j][0] == x:
+                    rho_new[j] = rho[i]
+
+        return rho_new
+
+
     ###########################################################################
     ## Optimizers
     ###########################################################################
@@ -2432,11 +2452,12 @@ class PMMI:
         return rho_optimum.reshape(Rho.shape), obj, E01, E02
 
 
-    def Optimize_Multiplexer_Penalize(self, Rho, src_1, src_2, prb_1, prb_2,\
-                             alpha, nepochs, bounds = [], plasma = False,\
-                             wp_max = 0, gamma = 0, uniform = True,\
-                             param_evolution = False, param_out = None,\
-                             E01 = None, E02 = None, E01l = None, E02l = None):
+    def Optimize_Multiplexer_Penalize(self, Rho, alpha, nepochs, src_1, src_2,\
+                             prb_1, prb_2, prbs_l = [], bounds = [],\
+                             plasma = False, wp_max = 0, gamma = 0,\
+                             uniform = True, param_evolution = False,\
+                             param_out = None, E01 = None, E02 = None,\
+                             E01l = None, E02l = None, E0l = []):
         """
         Optimize a multiplexer PMM with leak into opposite gate penalized.
 
@@ -2496,6 +2517,11 @@ class PMMI:
             E01l = field_mag_int(E1, self.probes[prb_2][3])
         if E02l == None:
             E02l = field_mag_int(E2, self.probes[prb_1][3])
+        if len(E0l) == 0:
+            for prb in prbs_l:
+                E0l.append(field_mag_int(E1, self.probes[prb][3]))
+                E0l.append(field_mag_int(E2, self.probes[prb][3]))
+
             
         #Define objective
         def objective(rho):
@@ -2534,10 +2560,16 @@ class PMMI:
                 raise RuntimeError("The two sources must have the same "+\
                                    "polarization.")
 
-            return (mode_overlap(E1, self.probes[prb_1][0])/E01)*\
+            obj = (mode_overlap(E1, self.probes[prb_1][0])/E01)*\
                     (mode_overlap(E2, self.probes[prb_2][0])/E02)-\
                     (field_mag_int(E1, self.probes[prb_2][3])/E01l)-\
                     (field_mag_int(E2, self.probes[prb_1][3])/E02l)
+
+            for i in range(len(prbs_l)):
+                obj -= field_mag_int(E1, self.probes[prbs_l[i]][3])/E0l[2*i]
+                obj -= field_mag_int(E2, self.probes[prbs_l[i]][3])/E0l[2*i+1]
+
+            return obj
 
         # Compute the gradient of the objective function
         objective_jac = jacobian(objective, mode='reverse')
@@ -2554,7 +2586,7 @@ class PMMI:
                                 objective_jac, Nsteps = nepochs,\
                                 direction = 'max', step_size = alpha)
 
-        return rho_optimum.reshape(Rho.shape), obj, E01, E02, E01l, E02l
+        return rho_optimum.reshape(Rho.shape), obj, E01, E02, E01l, E02l, E0l
 
 
     def Optimize_Logic_Gate(self, Rho, src_1, src_2, src_c, prb_n, prb_t, alpha,\
