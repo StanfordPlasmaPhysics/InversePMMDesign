@@ -1701,10 +1701,10 @@ class PMMI:
             bckgd = self.static_elems*\
                         (self.design_region==0).astype(np.complex128)
         else:
-            train = (train_epsr)*(elem_locs!=0).astype(np.float)
+            train = (train_epsr)*(elem_locs!=0).astype(np.float64)
             design = eps_bg_des*self.design_region*\
-                        (elem_locs==0).astype(np.float)
-            bckgd = self.static_elems*(self.design_region==0).astype(np.float)
+                        (elem_locs==0).astype(np.float64)
+            bckgd = self.static_elems*(self.design_region==0).astype(np.float64)
 
         return train + design + bckgd
 
