@@ -2113,6 +2113,26 @@ class PMMI:
             return E0
 
 
+    def Flip_y_opt(self, rho):
+        """
+        Flip design region along the y-direction. Design region must be
+        centered at y=0
+        
+        Args:
+            rho: Design parameters
+        """
+        rho_new = np.zeros(rho.shape[0])
+        for i in range(rho.shape[0]):
+            y = self.train_elem_locs[i][1]-self.ny/2
+            x = self.train_elem_locs[i][0]
+            for j in range(rho.shape[0]):
+                if self.train_elem_locs[j][1] - self.ny/2 == -y\
+                        and self.train_elem_locs[j][0] == x:
+                    rho_new[j] = rho[i]
+
+        return rho_new
+
+
     ###########################################################################
     ## Optimizers
     ###########################################################################
