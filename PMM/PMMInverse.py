@@ -829,6 +829,7 @@ class PMMI:
                 epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max,\
                                                         gamma, uniform,\
                                                         pmat = pmat)
+                _, elem_locs = self.Scale_Rho_wp(rho, w_src, wp_max, gamma)
             else:
                 epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
 
@@ -867,7 +868,7 @@ class PMMI:
                                    'source is not valid.')
 
         cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T,\
-          cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+          cmap='RdGy', vmin = np.min(elem_locs*np.real(epsr_opt)),\
           vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
         ax[len(src_names)].axes.xaxis.set_visible(False)
@@ -992,6 +993,7 @@ class PMMI:
         """
         fig, ax = plt.subplots(1, len(src_names)+1, constrained_layout=False,\
                                figsize=(9*len(src_names),4))
+        
         if perturb > 0:
             pmat = self.Pmat(rho, perturb)
         else:
@@ -1017,6 +1019,7 @@ class PMMI:
                 epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max,\
                                                         gamma, uniform,\
                                                         pmat = pmat)
+                _, elem_locs = self.Scale_Rho_wp(rho, w_src, wp_max, gamma)
             else:
                 epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
 
@@ -1055,7 +1058,7 @@ class PMMI:
                                    'source is not valid.')
 
         cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T,\
-          cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+          cmap='RdGy', vmin = np.min(elem_locs*np.real(epsr_opt)),\
           vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
         ax[len(src_names)].axes.xaxis.set_visible(False)
@@ -1086,6 +1089,7 @@ class PMMI:
         """
         fig, ax = plt.subplots(1, len(src_names)+1, constrained_layout=False,\
                                figsize=(4.5*(len(src_names)+1),4))
+        
         if perturb > 0:
             pmat = self.Pmat(rho, perturb)
         else:
@@ -1111,6 +1115,7 @@ class PMMI:
                 epsr_opt = self.Rho_Parameterization_wp(rho, w_src, wp_max,\
                                                         gamma, uniform,\
                                                         pmat = pmat)
+                _, elem_locs = self.Scale_Rho_wp(rho, w_src, wp_max, gamma)
             else:
                 epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
 
@@ -1145,7 +1150,7 @@ class PMMI:
                                    'source is not valid.')
 
         cbar = plt.colorbar(ax[len(src_names)].imshow(np.real(epsr_opt).T,\
-          cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+          cmap='RdGy', vmin = np.min(elem_locs*np.real(epsr_opt)),\
           vmax = np.max(np.real(epsr_opt))), ax=ax[len(src_names)])
         cbar.ax.set_ylabel('Relative Permittivity', fontsize=font)
         ax[len(src_names)].axes.xaxis.set_visible(False)
