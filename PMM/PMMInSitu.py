@@ -168,9 +168,9 @@ class PMMInSitu:
             t: float, time to stay activated (seconds). Default is to stay on
                indefinitely.
         """
-        self.Set_Bulb_VI(addr, 24, 10, verbose)
+        self.Set_Bulb_VI(addr, 28, 10, verbose)
         self.Activate_Bulb(addr)
-        time.sleep(0.25)
+        time.sleep(0.3)
         self.Set_Bulb_VI(addr, V, I, verbose)
         
         if t > 0.005:
@@ -199,15 +199,14 @@ class PMMInSitu:
         """
         Runs the standard warm-up procedure for the bulb array
         """
-        for addr in self.bulbs:
-            if addr != 'all':
-                self.Set_Bulb_VI(addr, addr/100, 0)
         for i in range(T):
             print("Warmup minute", i+1)
-            self.Set_Bulb_VI('all', 24, 10, verbose = False)
+            self.Set_Bulb_VI('all', 30, 10, verbose = False)
             time.sleep(0.5)
             self.Activate_Bulb('all')
-            time.sleep(15)
+            time.sleep(4)
+            self.Set_Bulb_VI('all', 24, 10, verbose = False)
+            time.sleep(10)
             self.Deactivate_Bulb('all')
             time.sleep(44.3)
 
@@ -269,7 +268,7 @@ class PMMInSitu:
             wp_max: Approximate maximum non-dimensionalized plasma frequency
         """
         
-        fp = (wp_max/1.5)*np.arctan(rho/(wp_max/7.5))
+        fp = (wp_max/1.5)*np.arctan(np.abs(rho)/(wp_max/7.5))
         fp_dim = fp*c/self.a/10**9
 
         return fp_dim
@@ -291,15 +290,24 @@ class PMMInSitu:
 
         if fp/S < 0.21:
             return (0,0)
+        
         elif fp/S >= 0.21 and fp/S < 0.42:
-            I = (0.42/S-(0.03*k-0.47))**(1/(0.8-0.1*k))/(3.5+8.7*k) #A
+            I = (0.42/S-(0.03*k-0.47))**(1/(0.8-0.01*k))/(3.5*k+8.7) #A
             return (30, I)
 
-        elif fp/S >= 0.42 and fp/S < 2.75 + 0.95*k:
-            I = (fp/S-(0.03*k-0.47))**(1/(0.8-0.1*k))/(3.5+8.7*k) #A
+        elif fp/S >= 0.42 and fp/S < 2.2 + 0.81*k:
+            I = (fp/S-(0.03*k-0.47))**(1/(0.8-0.01*k))/(3.5*k+8.7) #A
             return (30, I)
+        
+        elif fp/S >= 2.2 + 0.81*k and fp/S < 3.32 + 1.3*k:
+            if np.abs(fp/S-(3.32 + 1.3*k)) >= np.abs(fp/S-(2.2 + 0.81*k)):
+                I = (2.2 + 0.81*k-(0.03*k-0.47))**(1/(0.8-0.01*k))/(3.5*k+8.7)
+                return (30, I)
+            else:
+                V = (3.32 + 1.3*k+(5.75+1.1*k))**(1/(0.44+0.04*k))/(20+1.5*k)-0.5
+                return (V, 10)
 
-        elif fp/S >= 2.75 + 0.95*k and fp/S <= 11 + 4.6*k:
+        elif fp/S >= 3.32 + 1.3*k and fp/S <= 11 + 4.6*k:
             V = (fp/S+(5.75+1.1*k))**(1/(0.44+0.04*k))/(20+1.5*k)-0.5
             return (V, 10)
 
@@ -342,7 +350,7 @@ class PMMInSitu:
         """
         BulbSet = self.Rho_to_Bulb(rho, wp_max, knob, scale)
 
-        self.Set_Bulb_VI('all', 24, 10, verbose = False)
+        self.Set_Bulb_VI('all', 28, 10, verbose = False)
         time.sleep(0.005)
         try:
             self.Activate_Bulb('all')
@@ -389,3 +397,13 @@ class PMMInSitu:
             f: frequency in a units
         """
         return f*c/self.a/10**9
+    
+
+    def f_a(self, f):
+        """
+        Returns nondimensionalized frequency in a units
+
+        Args:
+            f: frequency in GHz
+        """
+        return f*10**9/c*self.a

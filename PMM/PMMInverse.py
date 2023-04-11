@@ -206,7 +206,7 @@ class PMMI:
         self.design_region = np.zeros((self.Nx,self.Ny)) #Design region array
         self.train_elems = [] #Masks for trainable elements
         self.train_elem_locs = []
-        self.static_elems = np.ones((self.Nx, self.Ny)) #Array for static 
+        self.static_elems = np.zeros((self.Nx, self.Ny)) #Array for static 
                                                         #elements outside the
                                                         #training region.
         self.sources = {} #Empty dict to hold source arrays
@@ -1269,6 +1269,7 @@ class PMMI:
             amp: turn up fields outside of input port
         """
         fig, ax = plt.subplots(1, 1, constrained_layout=False, figsize=(5,4))
+        _, elem_locs = self.Scale_Rho_wp(rho, w, wp_max, gamma)
 
         if perturb > 0:
             pmat = self.Pmat(rho, perturb)
@@ -1282,7 +1283,7 @@ class PMMI:
             epsr_opt = self.Rho_Parameterization(rho, bounds, pmat = pmat)
 
         cbar = plt.colorbar(ax.imshow(np.real(epsr_opt).T,\
-          cmap='RdGy', vmin = np.min(self.design_region*np.real(epsr_opt)),\
+          cmap='RdGy', vmin = np.min(elem_locs*np.real(epsr_opt)),\
           vmax = np.max(np.real(epsr_opt))), ax=ax)
         
         for src in src_names:
@@ -1698,13 +1699,16 @@ class PMMI:
             train = (train_epsr)*(elem_locs!=0).astype(np.complex128)
             design = eps_bg_des*self.design_region*\
                         (elem_locs==0).astype(np.complex128)
-            bckgd = self.static_elems*\
-                        (self.design_region==0).astype(np.complex128)
+            #bckgd = self.static_elems.astype(np.complex128)
+            bckgd = (self.static_elems+np.ones((self.Nx, self.Ny))*\
+                       (self.design_region==0)).astype(np.complex128)
         else:
             train = (train_epsr)*(elem_locs!=0).astype(np.float64)
             design = eps_bg_des*self.design_region*\
                         (elem_locs==0).astype(np.float64)
-            bckgd = self.static_elems*(self.design_region==0).astype(np.float64)
+            #bckgd = self.static_elems-.astype(np.float64)
+            bckgd = (self.static_elems+np.ones((self.Nx, self.Ny))*\
+                        (self.design_region==0)).astype(np.float64)
 
         return train + design + bckgd
 
