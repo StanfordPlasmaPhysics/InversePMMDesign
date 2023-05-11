@@ -195,17 +195,21 @@ class PMMInSitu:
         return
 
 
-    def Config_Warmup(self, T = 10):
+    def Config_Warmup(self, T = 10, ballasts = 'New'):
         """
         Runs the standard warm-up procedure for the bulb array
         """
+        if ballasts == 'New':
+            activate = 20
+        else:
+            activate = 28
         for i in range(T):
             print("Warmup minute", i+1)
-            self.Set_Bulb_VI('all', 30, 10, verbose = False)
+            self.Set_Bulb_VI('all', activate, 10, verbose = False)
             time.sleep(0.5)
             self.Activate_Bulb('all')
             time.sleep(4)
-            self.Set_Bulb_VI('all', 24, 10, verbose = False)
+            self.Set_Bulb_VI('all', activate-4, 10, verbose = False)
             time.sleep(10)
             self.Deactivate_Bulb('all')
             time.sleep(44.3)
@@ -313,9 +317,55 @@ class PMMInSitu:
 
         elif fp/S > 11 + 4.6*k:
             return (30,10)
+        
+
+    def BulbSetting_BOLSIG_NewDC(self, fp, knob = 0.5, scale = 1.0):
+        """
+        Maps plasma frequency value in GHz to a current and voltage setting for
+        the DC power supplies
+
+        Args:
+            fp: plasma frequency in GHz (NOT rad/s)
+            knob: constant to tune experimental fit to lower and upper range of
+                  BOLSIG cases. knob = 0 is low end and knob = 1 is high end.
+            scale: Parameter that scales the overall plasma frequency values.
+        """
+        k = knob
+        S = scale
+        Min_curr = S*((16/13)*((8.7+k*3.5)*0.08)**(-k*0.01+0.8)+(-0.47+k*0.03))
+        Max_curr = S*((16/13)*((8.7+k*3.5)*0.2)**(-k*0.01+0.8)+(-0.47+k*0.03))
+        Min_volt = S*(((5.25-k*1.7)*(6+0.5))**(k*0.1+0.55)+(k*0.725-0.3475))
+        Max_volt = S*(((5.25-k*1.7)*(30+0.5))**(k*0.1+0.55)+(k*0.725-0.3475))
+        
+        if fp < Min_curr/2:
+            return (0,0)
+        
+        elif fp >= Min_curr/2 and fp < Min_curr:
+            I = (13*Min_curr/16/S+0.47-0.03*k)**(1/(0.8-0.01*k))/(3.5*k+8.7) #A
+            return (32, I)
+
+        elif fp >= Min_curr and fp < Max_curr:
+            I = (13*fp/16/S+0.47-0.03*k)**(1/(0.8-0.01*k))/(3.5*k+8.7) #A
+            return (32, I)
+        
+        elif fp >= Max_curr and fp < Min_volt:
+            if fp < Max_curr+(Min_volt-Max_curr)/2:
+                I = (13*Max_curr/16/S+0.47-0.03*k)**(1/(0.8-0.01*k))/(3.5*k+8.7)
+                return (32, I)
+            else:
+                V = (Min_volt/S+0.3475-0.725*k)**(1/(0.55+0.1*k))/(5.25-1.7*k)-0.5
+                return (V, 10)
+
+        elif fp >= Min_volt and fp <= Max_volt:
+            V = (fp/S+0.3475-0.725*k)**(1/(0.55+0.1*k))/(5.25-1.7*k)-0.5
+            return (V, 10)
+
+        elif fp > Max_volt:
+            return (30,10)
 
 
-    def Rho_to_Bulb(self, rho, wp_max, knob = 0.5, scale = 1.0):
+    def Rho_to_Bulb(self, rho, wp_max, knob = 0.5, scale = 1.0,\
+                    ballast = 'New'):
         """
         Accepts optimal parameter array (MUST BE FLATTENED) and returns (V,I)
         for each bulb.
@@ -331,12 +381,16 @@ class PMMInSitu:
         fp = self.Scale_Rho_fp(rho, wp_max)
 
         for i in range(rho.shape[0]):
-            BulbSet[i,:] = self.BulbSetting_BOLSIG(fp[i], knob, scale)
+            if ballast == 'New':
+                BulbSet[i,:] = self.BulbSetting_BOLSIG_NewDC(fp[i], knob, scale)
+            else:
+                BulbSet[i,:] = self.BulbSetting_BOLSIG(fp[i], knob, scale)
 
         return BulbSet
 
 
-    def ArraySet_Rho(self, rho, wp_max, knob = 0.5, scale = 1.0):
+    def ArraySet_Rho(self, rho, wp_max, knob = 0.5, scale = 1.0,\
+                     ballast = 'New'):
         """
         Accepts optimal parameter array (MUST BE FLATTENED) and activates the
         bulb array accordingly.
@@ -348,9 +402,13 @@ class PMMInSitu:
                   BOLSIG cases. knob = 0 is low end and knob = 1 is high end.
             scale: Parameter that scales the overall plasma frequency values.
         """
-        BulbSet = self.Rho_to_Bulb(rho, wp_max, knob, scale)
+        BulbSet = self.Rho_to_Bulb(rho, wp_max, knob, scale, ballast)
+        if ballast == 'New':
+            activate = 20
+        else:
+            activate = 28
 
-        self.Set_Bulb_VI('all', 28, 10, verbose = False)
+        self.Set_Bulb_VI('all', activate, 10, verbose = False)
         time.sleep(0.005)
         try:
             self.Activate_Bulb('all')
@@ -368,13 +426,19 @@ class PMMInSitu:
                 self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
                 time.sleep(0.005)
             except:
-                print('Trouble setting bulb '+str(i+1)+', trying one more time')
-                time.sleep(1)
+                print('Trouble setting bulb '+str(i+1)+', trying again')
+                time.sleep(2)
                 try:
                     self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
+                    time.sleep(0.005)
                 except:
-                    raise RuntimeError("Failed to set"+\
-                            " bulb "+str(i+1)+" twice. Check config.")
+                    print('Trouble setting bulb '+str(i+1)+', trying one more time')
+                    time.sleep(2)
+                    try:
+                        self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
+                    except:
+                        raise RuntimeError("Failed to set"+\
+                            " bulb "+str(i+1)+" thrice. Check config.")
 
         return
 
