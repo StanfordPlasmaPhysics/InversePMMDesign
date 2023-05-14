@@ -18,5 +18,6 @@ setup(name="PMM",
           'minimalmodbus',
           'pyserial',
           'serial',
+          'RSInstrument',
           ]
       )

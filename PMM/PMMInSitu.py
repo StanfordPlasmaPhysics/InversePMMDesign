@@ -2,14 +2,21 @@
 The module composed in this file is meant to facilitate both in-situ inverse
 design and experimental control of plasma metamaterials composed of many
 elements. The library is constructed for use with Longwei DC power supplies
-which are connected on RS485 multidrop networks. This is NOT a general purpose
+which are connected on RS485 multidrop networks. When carrying out the
+optimization fully in-situ, you must use a Rohde and Schwarz ZNB vector network
+analyzer, or else you need to modify the vna commands and use a different VISA
+library than RSInstrument. The VISA backend I use on my Macbook Pro is the 
+National Instruments VISA. All that to say: this is NOT a general purpose
 library and functions with a very specific experimental setup. For more
 information, contact Jesse Rodriguez: jrodrig@stanford.edu
-11/10/2022
+05/11/2023
 """
 
 import minimalmodbus
+import matplotlib.pyplot as plt
 import numpy as np
+import random
+from RsInstrument import *
 import serial
 import glob
 import sys
@@ -53,6 +60,148 @@ def serial_ports():
             pass
     return result
 
+
+def Demult_Obj_Comp(freq, S21, S31, f1, f2, df = 0.25, norms = []):
+    """
+    Compute the demultiplexer objective that is analogous to the computational
+    inverse design library. f1 corresponds to port 2, f2 corresponds to port 3.
+
+    Args:
+        freq: frequency np.array, in GHz
+        S21: S21 np.array, in dB
+        S31: S31 np.array, in dB
+        f1: first operating frequency in GHz
+        f2: second operating frequency in GHz
+        df: bandwidth around operating frequencies in GHz
+        norms: normalization factors
+    """
+    i1_l = np.searchsorted(freq, f1-df, side='left')
+    i1_r = np.searchsorted(freq, f1+df, side='right')
+    i2_l = np.searchsorted(freq, f2-df, side='left')
+    i2_r = np.searchsorted(freq, f2+df, side='right')
+    T21 = np.power(10*np.ones_like(S21), S21/10)
+    T31 = np.power(10*np.ones_like(S31), S31/10)
+
+    correct_1 = np.sum(T21[i1_l:i1_r])
+    incorrect_1 = np.sum(T31[i1_l:i1_r])
+    correct_2 = np.sum(T31[i2_l:i2_r])
+    incorrect_2 = np.sum(T21[i2_l:i2_r])
+
+    if len(norms) > 0:
+        c_1 = correct_1/norms[0]
+        i_1 = incorrect_1/norms[1]
+        c_2 = correct_2/norms[2]
+        i_2 = incorrect_2/norms[3]
+        return c_1*c_2 - i_1 - i_2, norms
+    else:
+        new_norms = [np.abs(correct_1), np.abs(incorrect_1),\
+                     np.abs(correct_2), np.abs(incorrect_2)]
+        return -1, new_norms
+
+
+def Demult_Obj_dB(freq, S21, S31, f1, f2, df = 0.25, norms = []):
+    """
+    Compute the demultiplexer objective that focuses more instead on dB
+    transmission values. f1 corresponds to port 2, f2 corresponds to port 3.
+
+    Args:
+        freq: frequency np.array, in GHz
+        S21: S21 np.array, in dB
+        S31: S31 np.array, in dB
+        f1: first operating frequency in GHz
+        f2: second operating frequency in GHz
+        df: bandwidth around operating frequencies in GHz
+        norms: normalization factors
+    """
+    i1_l = np.searchsorted(freq, f1-df, side='left')
+    i1_r = np.searchsorted(freq, f1+df, side='right')
+    i2_l = np.searchsorted(freq, f2-df, side='left')
+    i2_r = np.searchsorted(freq, f2+df, side='right')
+    T21 = np.power(10*np.ones_like(S21), S21/10)
+    T31 = np.power(10*np.ones_like(S31), S31/10)
+    DdB = S21-S31
+
+    correct_1 = np.sum(T21[i1_l:i1_r])
+    correct_2 = np.sum(T31[i2_l:i2_r])
+    isolation_1 = np.sum(DdB[i1_l:i1_r])
+    isolation_2 = np.sum(-DdB[i2_l:i2_r])
+
+    if len(norms) > 0:
+        c_1 = correct_1/norms[0]
+        c_2 = correct_2/norms[1]
+        i_1 = isolation_1/norms[2]
+        i_2 = isolation_2/norms[3]
+        return c_1*c_2 + i_1 + i_2, norms
+    else:
+        new_norms = [np.abs(correct_1), np.abs(correct_2),\
+                     np.abs(isolation_1), np.abs(isolation_2)]
+        c_1 = correct_1/new_norms[0]
+        c_2 = correct_2/new_norms[1]
+        i_1 = isolation_1/new_norms[2]
+        i_2 = isolation_2/new_norms[3]
+        return c_1*c_2 + i_1 + i_2, new_norms
+
+
+def Waveguide_Obj_Comp(freq, S21, S31, f, df = 0.25, norms = []):
+    """
+    Compute the waveguide objective that is analogous to the computational
+    inverse design library. Port 2 has to be correct port, otherwise switch
+    S21 and S31.
+
+    Args:
+        freq: frequency np.array, in GHz
+        S21: S21 np.array, in dB
+        S31: S31 np.array, in dB
+        f: operating frequency in GHz
+        df: bandwidth around operating frequencies in GHz
+        norms: normalization factors
+    """
+    i_l = np.searchsorted(freq, f-df, side='left')
+    i_r = np.searchsorted(freq, f+df, side='right')
+    T21 = np.power(10*np.ones_like(S21), S21/10)
+    T31 = np.power(10*np.ones_like(S31), S31/10)
+
+    correct = np.sum(T21[i_l:i_r])
+    incorrect = np.sum(T31[i_l:i_r])
+
+    if len(norms) > 0:
+        c = correct/norms[0]
+        i = incorrect/norms[1]
+        return c - i, norms
+    else:
+        new_norms = [np.abs(correct), np.abs(incorrect)]
+        return 0, new_norms
+
+
+def Waveguide_Obj_dB(freq, S21, S31, f, df = 0.25, norms = []):
+    """
+    Compute the waveguide objective that focuses more instead on dB
+    isolation values. Port 2 has to be correct port, otherwise switch
+    S21 and S31.
+    
+    Args:
+        freq: frequency np.array, in GHz
+        S21: S21 np.array, in dB
+        S31: S31 np.array, in dB
+        f: operating frequency in GHz
+        df: bandwidth around operating frequencies in GHz
+        norms: normalization factors
+    """
+    i_l = np.searchsorted(freq, f-df, side='left')
+    i_r = np.searchsorted(freq, f+df, side='right')
+    
+    correct = np.sum(S21[i_l:i_r])
+    incorrect = np.sum(S31[i_l:i_r])
+    
+    if len(norms) > 0:
+        c = correct/norms[0]
+        i = incorrect/norms[1]
+        return c - i, norms
+    else:
+        new_norms = [np.abs(correct), np.abs(incorrect)]
+        return 0, new_norms
+
+
 ###############################################################################
 ## In-situ inverse design class
 ###############################################################################
@@ -66,6 +215,7 @@ class PMMInSitu:
         self.L = self.config['bulb-length']
         self.VtoI = np.loadtxt(conf_dir+'VtoI.txt', delimiter = ',')
         self.bulbs = {'all': {}}
+        self.VNA = self.config['VNA']
         ports = serial_ports()
         for port in self.config['serial_ports']:
             if port not in ports:
@@ -195,7 +345,7 @@ class PMMInSitu:
         return
 
 
-    def Config_Warmup(self, T = 10, ballasts = 'New'):
+    def Config_Warmup(self, T = 10, ballasts = 'New', duty_cycle = 0.5):
         """
         Runs the standard warm-up procedure for the bulb array
         """
@@ -204,7 +354,7 @@ class PMMInSitu:
         else:
             activate = 28
         for i in range(T):
-            print("Warmup minute", i+1)
+            print("Warmup cycle", i+1)
             self.Set_Bulb_VI('all', activate, 10, verbose = False)
             time.sleep(0.5)
             self.Activate_Bulb('all')
@@ -212,7 +362,7 @@ class PMMInSitu:
             self.Set_Bulb_VI('all', activate-4, 10, verbose = False)
             time.sleep(10)
             self.Deactivate_Bulb('all')
-            time.sleep(44.3)
+            time.sleep(15/duty_cycle-15)
 
         return
 
@@ -432,15 +582,377 @@ class PMMInSitu:
                     self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
                     time.sleep(0.005)
                 except:
-                    print('Trouble setting bulb '+str(i+1)+', trying one more time')
+                    print('Trouble setting bulb '+str(i+1)+', trying again')
                     time.sleep(2)
                     try:
                         self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
                     except:
-                        raise RuntimeError("Failed to set"+\
-                            " bulb "+str(i+1)+" thrice. Check config.")
+                        print('Trouble setting bulb '+str(i+1)+', trying one '+\
+                              'more time')
+                        time.sleep(3)
+                        try:
+                            self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
+                        except:
+                            self.Deactivate_Bulb('all')
+                            time.sleep(8)
+                            self.Deactivate_Bulb('all')
+                            raise RuntimeError("Failed to set"+\
+                            " bulb "+str(i+1)+" four times. Check config.")
 
         return
+
+
+    def Get_S21_S31(self):
+        """
+        Gets the freq array, S21 and S31 from the R&S VNA. Make sure the VNA is
+        in the measurement state you want PRIOR to running this function. In 
+        our case, that is with our cal set, 10000 points, Avg. factor 10.
+
+        Args:
+        """
+        instr = RsInstrument(self.VNA)
+
+        instr.write_str('TRIGger1:SEQuence:SOURce IMM')
+        time.sleep(7)
+        S21 = np.array(list(map(str,\
+                instr.query_str('CALC1:DATA:TRAC? "Trc1", FDAT').split(','))),\
+                                dtype = float)
+        S31 = np.array(list(map(str,\
+                instr.query_str('CALC1:DATA:TRAC? "Trc2", FDAT').split(','))),\
+                                dtype = float)
+        freq = np.array(list(map(str,\
+                instr.query_str('CALC1:DATA:STIM?').split(','))), dtype = float)
+        instr.write_str('TRIGger1:SEQuence:SOURce MAN')
+        instr.close()
+
+        return freq, S21, S31
+
+
+    def Optimize_Demultiplexer(self, epochs, rho, fpm, k, S, f1, f2, df = 0.25,\
+                               alpha = 0.01, sample = 12, p = 0.1, objective = 'comp',\
+                               wu = 10, progress_dir = '.', fwin = [],\
+                               duty_cycle = 0.5, show = True):
+        """
+        Performs an in-situ optimization procedure to produce a demultiplexer that 
+        differentiates between freqeuncies f1 and f2.
+
+        Args:
+            epochs: int, Number of epochs (1 epoch = all bulbs adjusted once)
+            rho: np.array, Starting parameters
+            fpm: float, Max plasma frequency in GHz
+            k: float in [0,1], Bulb fit knob
+            S: float in [0,1], Bulb fit scale factor
+            f1: float, frequency 1 in GHz
+            f2: float, frequency 2 in GHz
+            df: float, bandwidth around operating frequencies in GHz
+            alpha: float, learning rate
+            sample: int, How many bulbs at a time are modified to compute 
+                    gradient wrt subset of parameters
+            p: float, std. dev. of noise added to parameters
+            objective: str, chooses objective function
+            wu: int, # of minutes to warm up the array
+        """
+        rho_evolution = np.zeros((1,rho.shape[0]))
+        rho_evolution[0,:] = np.copy(rho)
+        num_bulbs = rho.shape[0]
+        bulb_idx = np.array(list(range(num_bulbs)))
+
+        if num_bulbs%sample != 0:
+            per_epoch = num_bulbs//sample + 1
+        else:
+            per_epoch = num_bulbs//sample
+        
+        print("="*80)
+        print("Initiating demultiplexer optimization. You have chosen to run "+\
+              str(epochs)+" epochs with a\nsample factor of "+str(sample)+".")
+        print("Since there are "+str(num_bulbs)+" bulbs, this means that each epoch"+\
+              " will take %.1f minutes, for\na total runtime of"%(per_epoch*38/60)+\
+              " about %.1f minutes."%(per_epoch*epochs+wu))
+        print("="*80)
+        print("\n")
+        print("="*80)
+        print("Running array warmup.")
+        print("="*80)
+        self.Config_Warmup(T = wu, ballasts = 'New', duty_cycle = duty_cycle)
+
+        print("\n")
+        print("="*80)
+        print("Array warm! Beginning optimization.")
+        print("="*80)
+
+        obj = []
+        t1 = time.time()
+        o, norms = self.Demult_Obj_Get(rho, fpm, k, S, f1, f2, df,\
+                                        objective, norms = [],\
+                                        duty_cycle = duty_cycle)
+        obj.append(o)
+        t2 = time.time()
+
+        print("="*80)
+        print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e" %(0, epochs,\
+                                                                    t2-t1, o))
+        print("="*80)
+
+        for e in range(epochs):
+            t1 = time.time()
+            bulbs = bulb_idx
+            bulbs_left = num_bulbs
+            for s in range(per_epoch):
+                # Sample bulbs in array without replacement
+                if sample < bulbs.shape[0]:
+                    samp = np.random.choice(bulbs_left, sample, replace = False)
+                    iter_bulbs = bulbs[samp]
+                    bulbs = np.delete(bulbs, samp)
+                    bulbs_left -= sample
+                else:
+                    iter_bulbs = bulbs
+
+                # Adjust sampled bulbs
+                rho_new = np.copy(rho)
+                rho_new[iter_bulbs] = rho[iter_bulbs] +\
+                                    np.random.normal(0, p, iter_bulbs.shape)
+
+                # Compute objective
+                o, norms = self.Demult_Obj_Get(rho, fpm, k, S, f1, f2,\
+                                                df, objective, norms, duty_cycle)
+
+                # Compute gradient
+                grad = (o-obj[len(obj)-1])/(rho_new[iter_bulbs]-rho[iter_bulbs]+1e-10)
+
+                # Gradient Ascent
+                rho[iter_bulbs] = rho_evolution[rho_evolution.shape[0]-1,\
+                                                iter_bulbs] + alpha*grad
+
+                # Add to obj and rho tracker
+                rho_evolution = np.row_stack([rho_evolution, rho])
+                obj.append(o)
+                print("Epoch: %3d/%3d | Sample: %3d/%3d | Value: %5e"\
+                        %(e+1, epochs, s+1, per_epoch, o))
+
+            t2 = time.time()
+            print("="*80)
+            print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e"\
+                        %(e+1, epochs, t2-t1, o))
+            print("="*80)
+
+            self.Save_Params(rho_evolution, progress_dir+'/rho.csv')
+            self.Save_Params(np.array(obj), progress_dir+'/obj.csv')
+
+        self.Demult_Run_And_Plot(progress_dir, rho, fpm, k, S, f1, f2,\
+                            fwin = fwin, show = show)
+
+
+    def Demult_Obj_Get(self, rho, fpm, k, S, f1, f2, df = 0.25,\
+                            objective = 'comp', norms = [], duty_cycle = 0.5):
+        """
+        Run array and get one objective value evaluation.
+
+        Args:
+            See args for Optimize_Demultiplexer()
+        """
+        self.ArraySet_Rho(rho, self.f_a(fpm), knob = k, scale = S)
+        time.sleep(1)
+        freq, S21, S31 = self.Get_S21_S31()
+        self.Deactivate_Bulb('all')
+        time.sleep(1)
+        self.Deactivate_Bulb('all')
+        time.sleep(18/duty_cycle-20)
+
+        if objective == 'comp':
+            return Demult_Obj_Comp(freq/10**9, S21, S31, f1, f2, df, norms)
+        elif objective == 'dB':
+            return Demult_Obj_dB(freq/10**9, S21, S31, f1, f2, df, norms)
+        else:
+            raise RuntimeError("That objective has not been implemented")
+
+
+    def Demult_Run_And_Plot(self, save_dir, rho, fpm, k, S, f1, f2,\
+                                   fwin = [], show = True):
+        """
+        Run array and plot transmission spectrumn.
+
+        Args:
+            See args for Optimize_Demultiplexer() and Trans_Plot_2Port()
+        """
+        self.ArraySet_Rho(rho, self.f_a(fpm), knob = k, scale = S)
+        time.sleep(1)
+        freq, S21, S31 = self.Get_S21_S31()
+        self.Deactivate_Bulb('all')
+        time.sleep(1)
+        self.Deactivate_Bulb('all')
+
+        savepath = save_dir+'/Demult_%.1f_%.1fGHz_fpm_%.1fGHz.pdf'%(f1,f2,fpm)
+        self.Trans_Plot_2Port(savepath, freq/10**9, S21, S31, fpm, f = [f1, f2],\
+                              f_win = fwin, show = show)
+
+        return
+
+
+    def Optimize_Waveguide(self, epochs, rho, fpm, k, S, f, df = 0.5,\
+                               alpha = 0.001, sample = 12, p = 0.01, objective = 'comp',\
+                               wu = 10, progress_dir = '.', fwin = [],\
+                               duty_cycle = 0.5, show = show):
+        """
+        Performs an in-situ optimization procedure to produce a waveguide/beam
+        steering device that operates at freqeuncy f and directs signal into
+        port 2..
+
+        Args:
+            epochs: int, Number of epochs (1 epoch = all bulbs adjusted once)
+            rho: np.array, Starting parameters
+            fpm: float, Max plasma frequency in GHz
+            k: float in [0,1], Bulb fit knob
+            S: float in [0,1], Bulb fit scale factor
+            f: float, operating frequency in GHz
+            df: float, bandwidth around operating frequencies in GHz
+            alpha: float, learning rate
+            sample: int, How many bulbs at a time are modified to compute 
+                    gradient wrt subset of parameters
+            p: float, std. dev. of noise added to parameters
+            objective: str, chooses objective function
+            wu: int, # of minutes to warm up the array
+        """
+        rho_evolution = np.zeros((1,rho.shape[0]))
+        rho_evolution[0,:] = np.copy(rho)
+        num_bulbs = rho.shape[0]
+        bulb_idx = np.array(list(range(num_bulbs)))
+
+        if num_bulbs%sample != 0:
+            per_epoch = num_bulbs//sample + 1
+        else:
+            per_epoch = num_bulbs//sample
+        
+        print("="*80)
+        print("Initiating waveguide optimization. You have chosen to run "+\
+              str(epochs)+" epochs with a\nsample factor of "+str(sample)+".")
+        print("Since there are "+str(num_bulbs)+" bulbs, this means that each epoch"+\
+              " will take %.1f minutes, for\na total runtime of"%(per_epoch*38/60)+\
+              " about %.1f minutes."%(per_epoch*epochs+wu))
+        print("="*80)
+        print("\n")
+        print("="*80)
+        print("Running array warmup.")
+        print("="*80)
+        self.Config_Warmup(T = wu, ballasts = 'New', duty_cycle = duty_cycle)
+
+        print("\n")
+        print("="*80)
+        print("Array warm! Beginning optimization.")
+        print("="*80)
+
+        obj = []
+        t1 = time.time()
+        o, norms = self.Wvg_Obj_Get(rho, fpm, k, S, f, df,\
+                                        objective, norms = [],\
+                                        duty_cycle = duty_cycle)
+        obj.append(o)
+        t2 = time.time()
+
+        print("="*80)
+        print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e" %(0, epochs,\
+                                                                    t2-t1, o))
+        print("="*80)
+
+        for e in range(epochs):
+            t1 = time.time()
+            bulbs = bulb_idx
+            bulbs_left = num_bulbs
+            for s in range(per_epoch):
+                # Sample bulbs in array without replacement
+                if sample < bulbs.shape[0]:
+                    samp = np.random.choice(bulbs_left, sample, replace = False)
+                    iter_bulbs = bulbs[samp]
+                    bulbs = np.delete(bulbs, samp)
+                    bulbs_left -= sample
+                else:
+                    iter_bulbs = bulbs
+
+                # Adjust sampled bulbs
+                rho_new = np.copy(rho)
+                rho_new[iter_bulbs] = rho[iter_bulbs] +\
+                                    np.random.normal(0, p, iter_bulbs.shape)
+
+                # Compute objective
+                o, norms = self.Wvg_Obj_Get(rho, fpm, k, S, f,\
+                                                df, objective, norms, duty_cycle)
+
+                # Compute gradient
+                grad = (o-obj[len(obj)-1])/(rho_new[iter_bulbs]-rho[iter_bulbs]+1e-10)
+
+                # Gradient Ascent
+                rho[iter_bulbs] = rho_evolution[rho_evolution.shape[0]-1,\
+                                                iter_bulbs] + alpha*grad
+
+                # Add to obj and rho tracker
+                rho_evolution = np.row_stack([rho_evolution, rho])
+                obj.append(o)
+                print("Epoch: %3d/%3d | Sample: %3d/%3d | Value: %5e"\
+                        %(e+1, epochs, s+1, per_epoch, o))
+
+            t2 = time.time()
+            print("="*80)
+            print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e"\
+                        %(e+1, epochs, t2-t1, o))
+            print("="*80)
+
+            self.Save_Params(rho_evolution, progress_dir+'/rho.csv')
+            self.Save_Params(np.array(obj), progress_dir+'/obj.csv')
+
+        self.Wvg_Run_And_Plot(progress_dir, freq, S21, S31, fpm,\
+                            f = f, f_win = f_win, show = True)
+
+
+    def Wvg_Obj_Get(self, rho, fpm, k, S, f, df = 0.25,\
+                    objective = 'comp', norms = [], duty_cycle = 0.5):
+        """
+        Run array and get one objective value evaluation.
+
+        Args:
+            See args for Optimize_Waveguide()
+        """
+        self.ArraySet_Rho(rho, self.f_a(fpm), knob = k, scale = S)
+        time.sleep(1)
+        freq, S21, S31 = self.Get_S21_S31()
+        self.Deactivate_Bulb('all')
+        time.sleep(1)
+        self.Deactivate_Bulb('all')
+        time.sleep(18/duty_cycle-20)
+
+        if objective == 'comp':
+            return Waveguide_Obj_Comp(freq/10**9, S21, S31, f1, f2, df, norms)
+        elif objective == 'dB':
+            return Waveguide_Obj_dB(freq/10**9, S21, S31, f1, f2, df, norms)
+        else:
+            raise RuntimeError("That objective has not been implemented")
+
+
+    def Wvg_Run_And_Plot(self, save_dir, rho, fpm, k, S, f,\
+                                   fwin = [], show = True):
+        """
+        Run array and plot transmission spectrumn.
+
+        Args:
+            See args for Optimize_Waveguide() and Trans_Plot_2Port()
+        """
+        self.ArraySet_Rho(rho, self.f_a(fpm), knob = k, scale = S)
+        time.sleep(1)
+        freq, S21, S31 = self.Get_S21_S31()
+        self.Deactivate_Bulb('all')
+        time.sleep(1)
+        self.Deactivate_Bulb('all')
+
+        savepath = save_dir+'/Wvg_%.1fGHz_fpm_%.1fGHz.pdf'%(f,fpm)
+        self.Trans_Plot_2Port(savepath, freq/10**9, S21, S31, fpm, f = [f1, f2],\
+                              f_win = fwin, show = show)
+
+        return
+
+
+    def Save_Params(self, rho, savepath):
+        """
+        Wrapper for np.savetxt
+        """
+        return np.savetxt(savepath, rho, delimiter=',')
 
 
     def Read_Params(self, readpath):
@@ -471,3 +983,42 @@ class PMMInSitu:
             f: frequency in GHz
         """
         return f*10**9/c*self.a
+
+
+    def Trans_Plot_2Port(self, savepath, freq, S21, S31, fpm, f = [],\
+                         f_win = [], show = True):
+        """
+        Creates plot of transmission spectrum for 2-port measurment
+
+        Args:
+            savepath: str
+            freq: np.array, frequency in GHz
+            S21: np.array
+            S31: np.array
+            fpm: float, max frequency in GHz
+            f: list of floats, operating frequencies in GHz
+        """
+        fig, ax = plt.subplots(1,1,figsize=(9,6))
+
+        ax.set_xlabel('Frequency (GHz)', fontsize = 30)
+        ax.set_ylabel('$S_{31}$ and $S_{21}$ (dB)', fontsize = 30)
+        for i in range(10):
+            ax.axhline(y=-10*(i+1), color='grey', label='_nolegend_',\
+                       linewidth = 1)
+        ax.set_title('k = 0, S = 0.7, $f_{p,max}$ = '+str(fpm)+' GHz',\
+                     fontsize = 30)
+        ax.tick_params(labelsize = 27)
+        ax.plot(freq, S21, linewidth = 5)
+        ax.plot(freq, S31, linewidth = 5)
+        for freq in f:
+            ax.axvline(x=freq, color='k', linestyle='--')
+        if len(f_win) > 0:
+            ax.set_xlim(f_win)
+        ax.set_ylim([-80,-10])
+        ax.legend(['$S_{21}$','$S_{31}$'], bbox_to_anchor=[1.15, 0.5], loc = 'center', ncol = 1, fontsize = 27)
+
+        plt.savefig(savepath, dpi=1500, bbox_inches='tight')
+        if show:
+            plt.show()
+
+        return

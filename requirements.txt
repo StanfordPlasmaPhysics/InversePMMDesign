@@ -8,3 +8,4 @@ scikit-image>=0.15.0
 pyserial>=3.5
 minimalmodbus>=2.0.1
 serial>=0.0.97
+RSInstrument>=1.53.1
