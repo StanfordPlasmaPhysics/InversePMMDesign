@@ -15,6 +15,7 @@ information, contact Jesse Rodriguez: jrodrig@stanford.edu
 import minimalmodbus
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import random
 from RsInstrument import *
 import serial
@@ -75,10 +76,10 @@ def Demult_Obj_Comp(freq, S21, S31, f1, f2, df = 0.25, norms = []):
         df: bandwidth around operating frequencies in GHz
         norms: normalization factors
     """
-    i1_l = np.searchsorted(freq, f1-df, side='left')
-    i1_r = np.searchsorted(freq, f1+df, side='right')
-    i2_l = np.searchsorted(freq, f2-df, side='left')
-    i2_r = np.searchsorted(freq, f2+df, side='right')
+    i1_l = np.searchsorted(freq, f1-df/2, side='left')
+    i1_r = np.searchsorted(freq, f1+df/2, side='right')
+    i2_l = np.searchsorted(freq, f2-df/2, side='left')
+    i2_r = np.searchsorted(freq, f2+df/2, side='right')
     T21 = np.power(10*np.ones_like(S21), S21/10)
     T31 = np.power(10*np.ones_like(S31), S31/10)
 
@@ -113,10 +114,10 @@ def Demult_Obj_dB(freq, S21, S31, f1, f2, df = 0.25, norms = []):
         df: bandwidth around operating frequencies in GHz
         norms: normalization factors
     """
-    i1_l = np.searchsorted(freq, f1-df, side='left')
-    i1_r = np.searchsorted(freq, f1+df, side='right')
-    i2_l = np.searchsorted(freq, f2-df, side='left')
-    i2_r = np.searchsorted(freq, f2+df, side='right')
+    i1_l = np.searchsorted(freq, f1-df/2, side='left')
+    i1_r = np.searchsorted(freq, f1+df/2, side='right')
+    i2_l = np.searchsorted(freq, f2-df/2, side='left')
+    i2_r = np.searchsorted(freq, f2+df/2, side='right')
     T21 = np.power(10*np.ones_like(S21), S21/10)
     T31 = np.power(10*np.ones_like(S31), S31/10)
     DdB = S21-S31
@@ -156,8 +157,8 @@ def Waveguide_Obj_Comp(freq, S21, S31, f, df = 0.25, norms = []):
         df: bandwidth around operating frequencies in GHz
         norms: normalization factors
     """
-    i_l = np.searchsorted(freq, f-df, side='left')
-    i_r = np.searchsorted(freq, f+df, side='right')
+    i_l = np.searchsorted(freq, f-df/2, side='left')
+    i_r = np.searchsorted(freq, f+df/2, side='right')
     T21 = np.power(10*np.ones_like(S21), S21/10)
     T31 = np.power(10*np.ones_like(S31), S31/10)
 
@@ -187,8 +188,8 @@ def Waveguide_Obj_dB(freq, S21, S31, f, df = 0.25, norms = []):
         df: bandwidth around operating frequencies in GHz
         norms: normalization factors
     """
-    i_l = np.searchsorted(freq, f-df, side='left')
-    i_r = np.searchsorted(freq, f+df, side='right')
+    i_l = np.searchsorted(freq, f-df/2, side='left')
+    i_r = np.searchsorted(freq, f+df/2, side='right')
     
     correct = np.sum(S21[i_l:i_r])
     incorrect = np.sum(S31[i_l:i_r])
@@ -492,16 +493,16 @@ class PMMInSitu:
         
         elif fp >= Min_curr/2 and fp < Min_curr:
             I = (13*Min_curr/16/S+0.47-0.03*k)**(1/(0.8-0.01*k))/(3.5*k+8.7) #A
-            return (32, I)
+            return (30, I)
 
         elif fp >= Min_curr and fp < Max_curr:
             I = (13*fp/16/S+0.47-0.03*k)**(1/(0.8-0.01*k))/(3.5*k+8.7) #A
-            return (32, I)
+            return (30, I)
         
         elif fp >= Max_curr and fp < Min_volt:
             if fp < Max_curr+(Min_volt-Max_curr)/2:
                 I = (13*Max_curr/16/S+0.47-0.03*k)**(1/(0.8-0.01*k))/(3.5*k+8.7)
-                return (32, I)
+                return (30, I)
             else:
                 V = (Min_volt/S+0.3475-0.725*k)**(1/(0.55+0.1*k))/(5.25-1.7*k)-0.5
                 return (V, 10)
@@ -570,34 +571,31 @@ class PMMInSitu:
             except:
                 raise RuntimeError("Failed to activate bulbs twice, check"+\
                         " config.")
+        time.sleep(1)
+        self.Set_Bulb_VI('all', activate-4, 10, verbose = False)
 
         for i in range(rho.shape[0]):
-            try:
-                self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
-                time.sleep(0.005)
-            except:
-                print('Trouble setting bulb '+str(i+1)+', trying again')
-                time.sleep(2)
+            not_set = True
+            tries = 0
+            while not_set and tries < 5:
+                try:
+                    self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
+                    time.sleep(0.005)
+                    not_set = False
+                except:
+                    tries += 1
+                    print('Trouble setting bulb '+str(i+1)+', trying again')
+                    time.sleep(1)
+            if not_set:
                 try:
                     self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
                     time.sleep(0.005)
                 except:
-                    print('Trouble setting bulb '+str(i+1)+', trying again')
-                    time.sleep(2)
-                    try:
-                        self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
-                    except:
-                        print('Trouble setting bulb '+str(i+1)+', trying one '+\
-                              'more time')
-                        time.sleep(3)
-                        try:
-                            self.Set_Bulb_VI(i+1, BulbSet[i,0], BulbSet[i,1])
-                        except:
-                            self.Deactivate_Bulb('all')
-                            time.sleep(8)
-                            self.Deactivate_Bulb('all')
-                            raise RuntimeError("Failed to set"+\
-                            " bulb "+str(i+1)+" four times. Check config.")
+                    self.Deactivate_Bulb('all')
+                    time.sleep(3)
+                    self.Deactivate_Bulb('all')
+                    raise RuntimeError("Failed to set bulb "+str(i+1)+\
+                                       " six times. Check config.")
 
         return
 
@@ -629,7 +627,8 @@ class PMMInSitu:
 
 
     def Optimize_Demultiplexer(self, epochs, rho, fpm, k, S, f1, f2, df = 0.25,\
-                               alpha = 0.01, sample = 12, p = 0.1, objective = 'comp',\
+                               alpha = 0.01, sample = 12, p = 0.1,\
+                               objective = 'comp', optimizer = 'grad. asc.',\
                                wu = 10, progress_dir = '.', fwin = [],\
                                duty_cycle = 0.5, show = True):
         """
@@ -652,8 +651,25 @@ class PMMInSitu:
             objective: str, chooses objective function
             wu: int, # of minutes to warm up the array
         """
-        rho_evolution = np.zeros((1,rho.shape[0]))
-        rho_evolution[0,:] = np.copy(rho)
+        if os.path.isfile(progress_dir+'/rho_Demult_%.1fGHz_fpm_%.1fGHz.csv'\
+                                          %(f, fpm)):
+            obj = self.Read_Params(progress_dir+\
+                    '/obj_Demult_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm)).tolist()
+            norms = self.Read_Params(progress_dir+\
+                    '/norms_Demult_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm)).tolist()
+            rho_evolution = self.Read_Params(progress_dir+\
+                    '/rho_Demult_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+            rho = np.copy(rho_evolution[np.argmax(obj),:])
+            print('='*80)
+            print('NOTE: Optimizer starting over from sample %.0f of previous'+\
+                  ' run'%(np.argmax(obj)+1))
+            print('='*80)
+            continuation = True
+        else:
+            rho_evolution = np.zeros((1,rho.shape[0]))
+            rho_evolution[0,:] = np.copy(rho)
+            continuation = False
+
         num_bulbs = rho.shape[0]
         bulb_idx = np.array(list(range(num_bulbs)))
 
@@ -680,18 +696,23 @@ class PMMInSitu:
         print("Array warm! Beginning optimization.")
         print("="*80)
 
-        obj = []
-        t1 = time.time()
-        o, norms = self.Demult_Obj_Get(rho, fpm, k, S, f1, f2, df,\
+        if not continuation:
+            obj = []
+            t1 = time.time()
+            o, norms = self.Demult_Obj_Get(rho, fpm, k, S, f1, f2, df,\
                                         objective, norms = [],\
                                         duty_cycle = duty_cycle)
-        obj.append(o)
-        t2 = time.time()
+            obj.append(o)
+            t2 = time.time()
 
-        print("="*80)
-        print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e" %(0, epochs,\
+            print("="*80)
+            print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e" %(0, epochs,\
                                                                     t2-t1, o))
-        print("="*80)
+            print("="*80)
+            self.Save_Params(np.array(norms), progress_dir+\
+                    '/norms_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
+        else:
+            pass
 
         for e in range(epochs):
             t1 = time.time()
@@ -715,13 +736,22 @@ class PMMInSitu:
                 # Compute objective
                 o, norms = self.Demult_Obj_Get(rho, fpm, k, S, f1, f2,\
                                                 df, objective, norms, duty_cycle)
+                
+                if optimizer == 'grad. asc.':
+                    # Compute gradient
+                    grad = (o-obj[len(obj)-1])/\
+                            (rho_new[iter_bulbs]-rho[iter_bulbs]+1e-10)
 
-                # Compute gradient
-                grad = (o-obj[len(obj)-1])/(rho_new[iter_bulbs]-rho[iter_bulbs]+1e-10)
-
-                # Gradient Ascent
-                rho[iter_bulbs] = rho_evolution[rho_evolution.shape[0]-1,\
-                                                iter_bulbs] + alpha*grad
+                    # Gradient Ascent
+                    rho[iter_bulbs] = rho_evolution[rho_evolution.shape[0]-1,\
+                                                    iter_bulbs] + alpha*grad
+                elif optimizer == 'greedy search':
+                    if o > obj[len(obj)-1]:
+                        rho[iter_bulbs] = rho_new[iter_bulbs]
+                    else:
+                        pass
+                else:
+                    raise RuntimeError("That optimizer is not implemented.")
 
                 # Add to obj and rho tracker
                 rho_evolution = np.row_stack([rho_evolution, rho])
@@ -735,11 +765,17 @@ class PMMInSitu:
                         %(e+1, epochs, t2-t1, o))
             print("="*80)
 
-            self.Save_Params(rho_evolution, progress_dir+'/rho.csv')
-            self.Save_Params(np.array(obj), progress_dir+'/obj.csv')
+            self.Save_Params(rho_evolution, progress_dir+\
+                    '/rho_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
+            self.Save_Params(np.array(obj), progress_dir+\
+                    '/obj_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
 
         self.Demult_Run_And_Plot(progress_dir, rho, fpm, k, S, f1, f2,\
                             fwin = fwin, show = show)
+        self.Plot_Obj(progress_dir+'/obj_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.pdf'\
+                              %(f1,f2,fpm), np.array(obj))
+
+        return
 
 
     def Demult_Obj_Get(self, rho, fpm, k, S, f1, f2, df = 0.25,\
@@ -789,13 +825,15 @@ class PMMInSitu:
 
 
     def Optimize_Waveguide(self, epochs, rho, fpm, k, S, f, df = 0.5,\
-                               alpha = 0.001, sample = 12, p = 0.01, objective = 'comp',\
+                               alpha = 0.001, sample = 12, p = 0.01,\
+                               objective = 'comp', optimizer = 'grad. asc.',\
                                wu = 10, progress_dir = '.', fwin = [],\
-                               duty_cycle = 0.5, show = show):
+                               duty_cycle = 0.5, show = True,\
+                               restart_obj = False):
         """
         Performs an in-situ optimization procedure to produce a waveguide/beam
         steering device that operates at freqeuncy f and directs signal into
-        port 2..
+        port 2.
 
         Args:
             epochs: int, Number of epochs (1 epoch = all bulbs adjusted once)
@@ -812,13 +850,30 @@ class PMMInSitu:
             objective: str, chooses objective function
             wu: int, # of minutes to warm up the array
         """
-        rho_evolution = np.zeros((1,rho.shape[0]))
-        rho_evolution[0,:] = np.copy(rho)
+        if os.path.isfile(progress_dir+'/rho_Wvg_%.1fGHz_fpm_%.1fGHz.csv'\
+                                          %(f, fpm)):
+            obj = self.Read_Params(progress_dir+\
+                    '/obj_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm)).tolist()
+            norms = self.Read_Params(progress_dir+\
+                    '/norms_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm)).tolist()
+            rho_evolution = self.Read_Params(progress_dir+\
+                    '/rho_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+            rho = np.copy(rho_evolution[np.argmax(obj),:])
+            print('='*80)
+            print('NOTE: Optimizer starting over from sample %.0f of previous'+\
+                  ' run'%(np.argmax(obj)+1))
+            print('='*80)
+            continuation = True
+        else:
+            rho_evolution = np.zeros((1,rho.shape[0]))
+            rho_evolution[0,:] = np.copy(rho)
+            continuation = False
+        
         num_bulbs = rho.shape[0]
         bulb_idx = np.array(list(range(num_bulbs)))
 
         if num_bulbs%sample != 0:
-            per_epoch = num_bulbs//sample + 1
+            per_epoch = num_bulbs//sample
         else:
             per_epoch = num_bulbs//sample
         
@@ -840,18 +895,38 @@ class PMMInSitu:
         print("Array warm! Beginning optimization.")
         print("="*80)
 
-        obj = []
-        t1 = time.time()
-        o, norms = self.Wvg_Obj_Get(rho, fpm, k, S, f, df,\
+        if not continuation:
+            obj = []
+            t1 = time.time()
+            o, norms = self.Wvg_Obj_Get(rho, fpm, k, S, f, df,\
                                         objective, norms = [],\
                                         duty_cycle = duty_cycle)
-        obj.append(o)
-        t2 = time.time()
+            obj.append(o)
+            t2 = time.time()
 
-        print("="*80)
-        print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e" %(0, epochs,\
+            print("="*80)
+            print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e" %(0, epochs,\
                                                                     t2-t1, o))
-        print("="*80)
+            print("="*80)
+            self.Save_Params(np.array(norms), progress_dir+\
+                '/norms_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+        else:
+            if restart_obj:
+                t1 = time.time()
+                o, norms = self.Wvg_Obj_Get(rho, fpm, k, S, f, df,\
+                                        objective, norms = [],\
+                                        duty_cycle = duty_cycle)
+                obj.append(o)
+                t2 = time.time()
+
+                print("="*80)
+                print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e" %(0, epochs,\
+                                                                    t2-t1, o))
+                print("="*80)
+                self.Save_Params(np.array(norms), progress_dir+\
+                    '/norms_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+            else:
+                pass
 
         for e in range(epochs):
             t1 = time.time()
@@ -859,7 +934,7 @@ class PMMInSitu:
             bulbs_left = num_bulbs
             for s in range(per_epoch):
                 # Sample bulbs in array without replacement
-                if sample < bulbs.shape[0]:
+                if 2*sample < bulbs.shape[0]:
                     samp = np.random.choice(bulbs_left, sample, replace = False)
                     iter_bulbs = bulbs[samp]
                     bulbs = np.delete(bulbs, samp)
@@ -876,12 +951,20 @@ class PMMInSitu:
                 o, norms = self.Wvg_Obj_Get(rho, fpm, k, S, f,\
                                                 df, objective, norms, duty_cycle)
 
-                # Compute gradient
-                grad = (o-obj[len(obj)-1])/(rho_new[iter_bulbs]-rho[iter_bulbs]+1e-10)
+                if optimizer == 'grad. asc.':
+                    # Compute gradient
+                    grad = (o-obj[len(obj)-1])/(rho_new[iter_bulbs]-rho[iter_bulbs]+1e-10)
 
-                # Gradient Ascent
-                rho[iter_bulbs] = rho_evolution[rho_evolution.shape[0]-1,\
+                    # Gradient Ascent
+                    rho[iter_bulbs] = rho_evolution[rho_evolution.shape[0]-1,\
                                                 iter_bulbs] + alpha*grad
+                elif optimizer == 'greedy search':
+                    if o > obj[len(obj)-1]:
+                        rho[iter_bulbs] = rho_new[iter_bulbs]
+                    else:
+                        pass
+                else:
+                    raise RuntimeError("That optimizer is not implemented.")
 
                 # Add to obj and rho tracker
                 rho_evolution = np.row_stack([rho_evolution, rho])
@@ -895,11 +978,17 @@ class PMMInSitu:
                         %(e+1, epochs, t2-t1, o))
             print("="*80)
 
-            self.Save_Params(rho_evolution, progress_dir+'/rho.csv')
-            self.Save_Params(np.array(obj), progress_dir+'/obj.csv')
+            self.Save_Params(rho_evolution, progress_dir+\
+                    '/rho_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+            self.Save_Params(np.array(obj), progress_dir+\
+                    '/obj_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
 
-        self.Wvg_Run_And_Plot(progress_dir, freq, S21, S31, fpm,\
-                            f = f, f_win = f_win, show = True)
+        self.Wvg_Run_And_Plot(progress_dir, rho, fpm, k, S, f,\
+                            fwin = fwin, show = show)
+        self.Plot_Obj(progress_dir+'/obj_Wvg_%.1fGHz_fpm_%.1fGHz.pdf'%(f, fpm),\
+                      np.array(obj))
+
+        return
 
 
     def Wvg_Obj_Get(self, rho, fpm, k, S, f, df = 0.25,\
@@ -919,9 +1008,9 @@ class PMMInSitu:
         time.sleep(18/duty_cycle-20)
 
         if objective == 'comp':
-            return Waveguide_Obj_Comp(freq/10**9, S21, S31, f1, f2, df, norms)
+            return Waveguide_Obj_Comp(freq/10**9, S21, S31, f, df, norms)
         elif objective == 'dB':
-            return Waveguide_Obj_dB(freq/10**9, S21, S31, f1, f2, df, norms)
+            return Waveguide_Obj_dB(freq/10**9, S21, S31, f, df, norms)
         else:
             raise RuntimeError("That objective has not been implemented")
 
@@ -942,7 +1031,7 @@ class PMMInSitu:
         self.Deactivate_Bulb('all')
 
         savepath = save_dir+'/Wvg_%.1fGHz_fpm_%.1fGHz.pdf'%(f,fpm)
-        self.Trans_Plot_2Port(savepath, freq/10**9, S21, S31, fpm, f = [f1, f2],\
+        self.Trans_Plot_2Port(savepath, freq/10**9, S21, S31, fpm, f = [f],\
                               f_win = fwin, show = show)
 
         return
@@ -955,14 +1044,21 @@ class PMMInSitu:
         return np.savetxt(savepath, rho, delimiter=',')
 
 
-    def Read_Params(self, readpath):
+    def Read_Params(self, readpath, iteration = 0):
         """
         Reads optimization parameters from the computational invdes library.
 
         Args:
             readpath: read path. Must be csv.
         """
-        return np.loadtxt(readpath, delimiter=",")
+        if iteration > 0:
+            rho = np.loadtxt(readpath, delimiter=',')
+            return rho[iteration-1,:]
+        elif iteration == 'last':
+            rho = np.loadtxt(readpath, delimiter=',')
+            return rho[rho.shape[0]-1,:]
+        else:
+            return np.loadtxt(readpath, delimiter=",")
 
 
     def f_GHz(self, f):
@@ -988,7 +1084,7 @@ class PMMInSitu:
     def Trans_Plot_2Port(self, savepath, freq, S21, S31, fpm, f = [],\
                          f_win = [], show = True):
         """
-        Creates plot of transmission spectrum for 2-port measurment
+        Creates plot of transmission spectrum for 2-port measurement
 
         Args:
             savepath: str
@@ -1016,6 +1112,28 @@ class PMMInSitu:
             ax.set_xlim(f_win)
         ax.set_ylim([-80,-10])
         ax.legend(['$S_{21}$','$S_{31}$'], bbox_to_anchor=[1.15, 0.5], loc = 'center', ncol = 1, fontsize = 27)
+
+        plt.savefig(savepath, dpi=1500, bbox_inches='tight')
+        if show:
+            plt.show()
+
+        return
+
+
+    def Plot_Obj(self, savepath, obj, show = True):
+        """
+        Creates plot of objective evolution throughout optimization
+
+        Args:
+            savepath: str
+            obj: np.array, objective function values
+        """
+        fig, ax = plt.subplots(1,1,figsize=(9,6))
+
+        ax.set_xlabel('Samples', fontsize = 30)
+        ax.set_ylabel('Objective', fontsize = 30)
+        ax.tick_params(labelsize = 27)
+        ax.plot(obj, linewidth = 5)
 
         plt.savefig(savepath, dpi=1500, bbox_inches='tight')
         if show:
