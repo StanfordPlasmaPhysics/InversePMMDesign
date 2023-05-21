@@ -515,6 +515,51 @@ class PMMInSitu:
             return (30,10)
 
 
+    def BulbSetting_BOLSIG_NewDC_Fix(self, fp, knob = 0.5, scale = 1.0):
+        """
+        Maps plasma frequency value in GHz to a current and voltage setting for
+        the DC power supplies
+
+        Args:
+            fp: plasma frequency in GHz (NOT rad/s)
+            knob: constant to tune experimental fit to lower and upper range of
+                  BOLSIG cases. knob = 0 is low end and knob = 1 is high end.
+            scale: Parameter that scales the overall plasma frequency values.
+        """
+        k = knob
+        S = scale
+        Min_curr = S*((16/13)*((8.7+k*3.5)*0.08)**(-k*0.01+0.8)+(-0.47+k*0.03))
+        Max_curr = S*((16/13)*((8.7+k*3.5)*0.2)**(-k*0.01+0.8)+(-0.47+k*0.03))
+        Min_volt = S*(((5.25-k*1.7)*(6+0.5))**(k*0.1+0.55)+(k*0.725-3.475))
+        Max_volt = S*(((5.25-k*1.7)*(30+0.5))**(k*0.1+0.55)+(k*0.725-3.475))
+        
+        if fp < Min_curr/2:
+            return (0,0)
+        
+        elif fp >= Min_curr/2 and fp < Min_curr:
+            I = (13*Min_curr/16/S+0.47-0.03*k)**(1/(0.8-0.01*k))/(3.5*k+8.7) #A
+            return (30, I)
+
+        elif fp >= Min_curr and fp < Max_curr:
+            I = (13*fp/16/S+0.47-0.03*k)**(1/(0.8-0.01*k))/(3.5*k+8.7) #A
+            return (30, I)
+        
+        elif fp >= Max_curr and fp < Min_volt:
+            if fp < Max_curr+(Min_volt-Max_curr)/2:
+                I = (13*Max_curr/16/S+0.47-0.03*k)**(1/(0.8-0.01*k))/(3.5*k+8.7)
+                return (30, I)
+            else:
+                V = (Min_volt/S+3.475-0.725*k)**(1/(0.55+0.1*k))/(5.25-1.7*k)-0.5
+                return (V, 10)
+
+        elif fp >= Min_volt and fp <= Max_volt:
+            V = (fp/S+3.475-0.725*k)**(1/(0.55+0.1*k))/(5.25-1.7*k)-0.5
+            return (V, 10)
+
+        elif fp > Max_volt:
+            return (30,10)
+
+
     def Rho_to_Bulb(self, rho, wp_max, knob = 0.5, scale = 1.0,\
                     ballast = 'New'):
         """
@@ -540,6 +585,31 @@ class PMMInSitu:
         return BulbSet
 
 
+    def Rho_to_Bulb_Fix(self, rho, wp_max, knob = 0.5, scale = 1.0,\
+                    ballast = 'New'):
+        """
+        Accepts optimal parameter array (MUST BE FLATTENED) and returns (V,I)
+        for each bulb.
+
+        Args:
+            rho: optimal parameter array (flattened) from PMMInverse library
+            wp_max: Approximate maximum non-dimensionalized plasma frequency
+            knob: constant to tune experimental fit to lower and upper range of
+                  BOLSIG cases. knob = 0 is low end and knob = 1 is high end.
+            scale: Parameter that scales the overall plasma frequency values.
+        """
+        BulbSet = np.zeros((rho.shape[0],2))
+        fp = self.Scale_Rho_fp(rho, wp_max)
+
+        for i in range(rho.shape[0]):
+            if ballast == 'New':
+                BulbSet[i,:] = self.BulbSetting_BOLSIG_NewDC_Fix(fp[i], knob, scale)
+            else:
+                BulbSet[i,:] = self.BulbSetting_BOLSIG(fp[i], knob, scale)
+
+        return BulbSet
+
+
     def ArraySet_Rho(self, rho, wp_max, knob = 0.5, scale = 1.0,\
                      ballast = 'New'):
         """
@@ -553,7 +623,7 @@ class PMMInSitu:
                   BOLSIG cases. knob = 0 is low end and knob = 1 is high end.
             scale: Parameter that scales the overall plasma frequency values.
         """
-        BulbSet = self.Rho_to_Bulb(rho, wp_max, knob, scale, ballast)
+        BulbSet = self.Rho_to_Bulb_Fix(rho, wp_max, knob, scale, ballast)
         if ballast == 'New':
             activate = 20
         else:
@@ -626,11 +696,53 @@ class PMMInSitu:
         return freq, S21, S31
 
 
+    def Test_Comp_Rho(self, rho, fpm, k_S = [], f_op = [], fwin = [],\
+                      wu = 10, save_dir = './', duty_cycle = 0.5, show = True):
+        """
+        Takes optimal rho from the computational inverse design library and 
+        performs a test that sweeps through a user-defined sweep of the fit
+        parameters k and S
+
+        Args:
+            rho: np.array, optimal parameters
+            fpm: float, max plasma frequency in GHz
+            k_S: np.array, [k,S] pairs for each iteration of the test procedure.
+            f_op: list of operating frequencies in GHz
+            fwin: list, plotting window for frequency
+            save_dir: str, directory to save in
+            duty_cycle: float in [0,1], duty cycle of array
+            show: bool, show plot or not.
+        """
+        print("="*80)
+        print("Running array warmup.")
+        print("="*80)
+        self.Config_Warmup(T = wu, ballasts = 'New', duty_cycle = duty_cycle)
+        print("\n")
+        print("="*80)
+        print("Array warm! Beginning test.")
+        print("="*80)
+        
+        for i in range(k_S.shape[0]):
+            print('Running k = %.1f, S = %.1f case.'%(k_S[i,0], k_S[i,1]))
+            if len(f_op) > 1:
+                self.Demult_Run_And_Plot(save_dir, rho, fpm, k_S[i,0], k_S[i,1],\
+                            f_op[0], f_op[1], fwin = fwin, show = show)
+            else:
+                self.Wvg_Run_And_Plot(save_dir, rho, fpm, k_S[i,0], k_S[i,1],\
+                            f_op[0], fwin = fwin, show = show)
+            time.sleep(20/duty_cycle-22)
+
+        return
+
+
+
+
     def Optimize_Demultiplexer(self, epochs, rho, fpm, k, S, f1, f2, df = 0.25,\
                                alpha = 0.01, sample = 12, p = 0.1,\
                                objective = 'comp', optimizer = 'grad. asc.',\
                                wu = 10, progress_dir = '.', fwin = [],\
-                               duty_cycle = 0.5, show = True):
+                               duty_cycle = 0.5, show = True,\
+                               restart_obj = False):
         """
         Performs an in-situ optimization procedure to produce a demultiplexer that 
         differentiates between freqeuncies f1 and f2.
@@ -661,7 +773,7 @@ class PMMInSitu:
                     '/rho_Demult_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
             rho = np.copy(rho_evolution[np.argmax(obj),:])
             print('='*80)
-            print('NOTE: Optimizer starting over from sample %.0f of previous'+\
+            print('NOTE: Optimizer starting over from sample %d of previous'+\
                   ' run'%(np.argmax(obj)+1))
             print('='*80)
             continuation = True
@@ -712,7 +824,23 @@ class PMMInSitu:
             self.Save_Params(np.array(norms), progress_dir+\
                     '/norms_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
         else:
-            pass
+            if restart_obj:
+                obj = []
+                t1 = time.time()
+                o, norms = self.Demult_Obj_Get(rho, fpm, k, S, f1, f2, df,\
+                                        objective, norms = [],\
+                                        duty_cycle = duty_cycle)
+                obj.append(o)
+                t2 = time.time()
+
+                print("="*80)
+                print("Epoch: %3d/%3d | Duration: %.2f secs | Value: %5e" %(0, epochs,\
+                                                                    t2-t1, o))
+                print("="*80)
+                self.Save_Params(np.array(norms), progress_dir+\
+                    '/norms_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
+            else:
+                pass
 
         for e in range(epochs):
             t1 = time.time()
@@ -770,7 +898,8 @@ class PMMInSitu:
             self.Save_Params(np.array(obj), progress_dir+\
                     '/obj_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
 
-        self.Demult_Run_And_Plot(progress_dir, rho, fpm, k, S, f1, f2,\
+        best_iter = np.argmax(np.array(obj))
+        self.Demult_Run_And_Plot(progress_dir, rho_evolution[best_iter,:], fpm, k, S, f1, f2,\
                             fwin = fwin, show = show)
         self.Plot_Obj(progress_dir+'/obj_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.pdf'\
                               %(f1,f2,fpm), np.array(obj))
@@ -817,9 +946,10 @@ class PMMInSitu:
         time.sleep(1)
         self.Deactivate_Bulb('all')
 
-        savepath = save_dir+'/Demult_%.1f_%.1fGHz_fpm_%.1fGHz.pdf'%(f1,f2,fpm)
-        self.Trans_Plot_2Port(savepath, freq/10**9, S21, S31, fpm, f = [f1, f2],\
-                              f_win = fwin, show = show)
+        savepath = save_dir+'/Demult_%.1f_%.1fGHz_fpm_%.1fGHz_k%.1f_S%.1f.pdf'\
+                        %(f1,f2,fpm,k,S)
+        self.Trans_Plot_2Port(savepath, freq/10**9, S21, S31, fpm, k, S,\
+                              f = [f1, f2], f_win = fwin, show = show)
 
         return
 
@@ -860,7 +990,7 @@ class PMMInSitu:
                     '/rho_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
             rho = np.copy(rho_evolution[np.argmax(obj),:])
             print('='*80)
-            print('NOTE: Optimizer starting over from sample %.0f of previous'+\
+            print('NOTE: Optimizer starting over from sample %d of previous'+\
                   ' run'%(np.argmax(obj)+1))
             print('='*80)
             continuation = True
@@ -983,7 +1113,8 @@ class PMMInSitu:
             self.Save_Params(np.array(obj), progress_dir+\
                     '/obj_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
 
-        self.Wvg_Run_And_Plot(progress_dir, rho, fpm, k, S, f,\
+        best_iter = np.argmax(np.array(obj))
+        self.Wvg_Run_And_Plot(progress_dir, rho_evolution[best_iter,:], fpm, k, S, f,\
                             fwin = fwin, show = show)
         self.Plot_Obj(progress_dir+'/obj_Wvg_%.1fGHz_fpm_%.1fGHz.pdf'%(f, fpm),\
                       np.array(obj))
@@ -1030,9 +1161,10 @@ class PMMInSitu:
         time.sleep(1)
         self.Deactivate_Bulb('all')
 
-        savepath = save_dir+'/Wvg_%.1fGHz_fpm_%.1fGHz.pdf'%(f,fpm)
-        self.Trans_Plot_2Port(savepath, freq/10**9, S21, S31, fpm, f = [f],\
-                              f_win = fwin, show = show)
+        savepath = save_dir+'/Wvg_%.1fGHz_fpm_%.1fGHz_k%.1f_S%.1f.pdf'\
+                        %(f,fpm,k,S)
+        self.Trans_Plot_2Port(savepath, freq/10**9, S21, S31, fpm, k, S,\
+                              f = [f], f_win = fwin, show = show)
 
         return
 
@@ -1081,8 +1213,8 @@ class PMMInSitu:
         return f*10**9/c*self.a
 
 
-    def Trans_Plot_2Port(self, savepath, freq, S21, S31, fpm, f = [],\
-                         f_win = [], show = True):
+    def Trans_Plot_2Port(self, savepath, freq, S21, S31, fpm, k, S,\
+                         f = [], f_win = [], show = True):
         """
         Creates plot of transmission spectrum for 2-port measurement
 
@@ -1101,7 +1233,7 @@ class PMMInSitu:
         for i in range(10):
             ax.axhline(y=-10*(i+1), color='grey', label='_nolegend_',\
                        linewidth = 1)
-        ax.set_title('k = 0, S = 0.7, $f_{p,max}$ = '+str(fpm)+' GHz',\
+        ax.set_title('k = %.1f, S = %.1f, $f_{p,max}$ = %.1f GHz'%(k,S,fpm),\
                      fontsize = 30)
         ax.tick_params(labelsize = 27)
         ax.plot(freq, S21, linewidth = 5)
