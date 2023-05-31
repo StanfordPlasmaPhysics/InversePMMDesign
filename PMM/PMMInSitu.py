@@ -132,7 +132,7 @@ def Demult_Obj_dB(freq, S21, S31, f1, f2, df = 0.25, norms = []):
         c_2 = correct_2/norms[1]
         i_1 = isolation_1/norms[2]
         i_2 = isolation_2/norms[3]
-        return c_1*c_2 + i_1 + i_2, norms
+        return c_1*c_2 + 10*i_1 + 10*i_2, norms
     else:
         new_norms = [np.abs(correct_1), np.abs(correct_2),\
                      np.abs(isolation_1), np.abs(isolation_2)]
@@ -140,7 +140,7 @@ def Demult_Obj_dB(freq, S21, S31, f1, f2, df = 0.25, norms = []):
         c_2 = correct_2/new_norms[1]
         i_1 = isolation_1/new_norms[2]
         i_2 = isolation_2/new_norms[3]
-        return c_1*c_2 + i_1 + i_2, new_norms
+        return c_1*c_2 + 10*i_1 + 10*i_2, new_norms
 
 
 def Waveguide_Obj_Comp(freq, S21, S31, f, df = 0.25, norms = []):
@@ -742,7 +742,8 @@ class PMMInSitu:
                                objective = 'comp', optimizer = 'grad. asc.',\
                                wu = 10, progress_dir = '.', fwin = [],\
                                duty_cycle = 0.5, show = True,\
-                               restart_obj = False):
+                               restart_obj = False, verbose = False,\
+                               ID = ''):
         """
         Performs an in-situ optimization procedure to produce a demultiplexer that 
         differentiates between freqeuncies f1 and f2.
@@ -763,18 +764,18 @@ class PMMInSitu:
             objective: str, chooses objective function
             wu: int, # of minutes to warm up the array
         """
-        if os.path.isfile(progress_dir+'/rho_Demult_%.1fGHz_fpm_%.1fGHz.csv'\
-                                          %(f, fpm)):
+        if os.path.isfile(progress_dir+'/rho_Demult_%.1f_%.1fGHz_fpm_%.1fGHz'\
+                %(f1,f2,fpm)+ID+'.csv'):
             obj = self.Read_Params(progress_dir+\
-                    '/obj_Demult_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm)).tolist()
+                    '/obj_Demult_%.1f_%.1fGHz_fpm_%.1fGHz'%(f1,f2,fpm)+ID+'.csv').tolist()
             norms = self.Read_Params(progress_dir+\
-                    '/norms_Demult_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm)).tolist()
+                    '/norms_Demult_%.1f_%.1fGHz_fpm_%.1fGHz'%(f1,f2,fpm)+ID+'.csv').tolist()
             rho_evolution = self.Read_Params(progress_dir+\
-                    '/rho_Demult_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+                    '/rho_Demult_%.1f_%.1fGHz_fpm_%.1fGHz'%(f1,f2,fpm)+ID+'.csv')
             rho = np.copy(rho_evolution[np.argmax(obj),:])
             print('='*80)
-            print('NOTE: Optimizer starting over from sample %d of previous'+\
-                  ' run'%(np.argmax(obj)+1))
+            print('NOTE: Optimizer starting over from sample '+\
+                    '%d of previous run'%(np.argmax(obj)+1))
             print('='*80)
             continuation = True
         else:
@@ -786,7 +787,7 @@ class PMMInSitu:
         bulb_idx = np.array(list(range(num_bulbs)))
 
         if num_bulbs%sample != 0:
-            per_epoch = num_bulbs//sample + 1
+            per_epoch = num_bulbs//sample
         else:
             per_epoch = num_bulbs//sample
         
@@ -822,7 +823,7 @@ class PMMInSitu:
                                                                     t2-t1, o))
             print("="*80)
             self.Save_Params(np.array(norms), progress_dir+\
-                    '/norms_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
+                    '/norms_Demult_%.1f_%.1fGHz_fpm_%.1fGHz'%(f1,f2,fpm)+ID+'.csv')
         else:
             if restart_obj:
                 obj = []
@@ -838,7 +839,7 @@ class PMMInSitu:
                                                                     t2-t1, o))
                 print("="*80)
                 self.Save_Params(np.array(norms), progress_dir+\
-                    '/norms_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
+                    '/norms_Demult_%.1f_%.1fGHz_fpm_%.1fGHz'%(f1,f2,fpm)+ID+'.csv')
             else:
                 pass
 
@@ -848,7 +849,7 @@ class PMMInSitu:
             bulbs_left = num_bulbs
             for s in range(per_epoch):
                 # Sample bulbs in array without replacement
-                if sample < bulbs.shape[0]:
+                if 2*sample < bulbs.shape[0]:
                     samp = np.random.choice(bulbs_left, sample, replace = False)
                     iter_bulbs = bulbs[samp]
                     bulbs = np.delete(bulbs, samp)
@@ -860,6 +861,13 @@ class PMMInSitu:
                 rho_new = np.copy(rho)
                 rho_new[iter_bulbs] = rho[iter_bulbs] +\
                                     np.random.normal(0, p, iter_bulbs.shape)
+
+                if verbose:
+                    print("-"*80)
+                    print("Bulbs sampled:" , iter_bulbs+1)
+                    print("fp before:", self.Scale_Rho_fp(rho[iter_bulbs],self.f_a(fpm)))
+                    print("fp after:", self.Scale_Rho_fp(rho_new[iter_bulbs],self.f_a(fpm)))
+                    print("-"*80)
 
                 # Compute objective
                 o, norms = self.Demult_Obj_Get(rho, fpm, k, S, f1, f2,\
@@ -881,6 +889,15 @@ class PMMInSitu:
                 else:
                     raise RuntimeError("That optimizer is not implemented.")
 
+                if verbose:
+                    print("-"*80)
+                    print("Optimizer adjustment:")
+                    print("fp before:\n",\
+                        self.Scale_Rho_fp(rho_evolution[rho_evolution.shape[0]-1,\
+                                                        iter_bulbs],self.f_a(fpm)))
+                    print("fp after:\n", self.Scale_Rho_fp(rho[iter_bulbs],self.f_a(fpm)))
+                    print("-"*80)
+
                 # Add to obj and rho tracker
                 rho_evolution = np.row_stack([rho_evolution, rho])
                 obj.append(o)
@@ -894,15 +911,15 @@ class PMMInSitu:
             print("="*80)
 
             self.Save_Params(rho_evolution, progress_dir+\
-                    '/rho_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
+                    '/rho_Demult_%.1f_%.1fGHz_fpm_%.1fGHz'%(f1,f2,fpm)+ID+'.csv')
             self.Save_Params(np.array(obj), progress_dir+\
-                    '/obj_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.csv'%(f1,f2,fpm))
+                    '/obj_Demult_%.1f_%.1fGHz_fpm_%.1fGHz'%(f1,f2,fpm)+ID+'.csv')
 
         best_iter = np.argmax(np.array(obj))
         self.Demult_Run_And_Plot(progress_dir, rho_evolution[best_iter,:], fpm, k, S, f1, f2,\
                             fwin = fwin, show = show)
-        self.Plot_Obj(progress_dir+'/obj_Demult_%.1f_%.1fGHz_fpm_%.1fGHz.pdf'\
-                              %(f1,f2,fpm), np.array(obj))
+        self.Plot_Obj(progress_dir+'/obj_Demult_%.1f_%.1fGHz_fpm_%.1fGHz'\
+                              %(f1,f2,fpm)+ID+'.pdf', np.array(obj))
 
         return
 
@@ -959,7 +976,8 @@ class PMMInSitu:
                                objective = 'comp', optimizer = 'grad. asc.',\
                                wu = 10, progress_dir = '.', fwin = [],\
                                duty_cycle = 0.5, show = True,\
-                               restart_obj = False):
+                               restart_obj = False, verbose = False,\
+                               ID = ''):
         """
         Performs an in-situ optimization procedure to produce a waveguide/beam
         steering device that operates at freqeuncy f and directs signal into
@@ -980,18 +998,18 @@ class PMMInSitu:
             objective: str, chooses objective function
             wu: int, # of minutes to warm up the array
         """
-        if os.path.isfile(progress_dir+'/rho_Wvg_%.1fGHz_fpm_%.1fGHz.csv'\
-                                          %(f, fpm)):
+        if os.path.isfile(progress_dir+'/rho_Wvg_%.1fGHz_fpm_%.1fGHz'\
+                                          %(f, fpm)+ID+'.csv'):
             obj = self.Read_Params(progress_dir+\
-                    '/obj_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm)).tolist()
+                    '/obj_Wvg_%.1fGHz_fpm_%.1fGHz'%(f, fpm)+ID+'.csv').tolist()
             norms = self.Read_Params(progress_dir+\
-                    '/norms_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm)).tolist()
+                    '/norms_Wvg_%.1fGHz_fpm_%.1fGHz'%(f, fpm)+ID+'.csv').tolist()
             rho_evolution = self.Read_Params(progress_dir+\
-                    '/rho_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+                    '/rho_Wvg_%.1fGHz_fpm_%.1fGHz'%(f, fpm)+ID+'.csv')
             rho = np.copy(rho_evolution[np.argmax(obj),:])
             print('='*80)
-            print('NOTE: Optimizer starting over from sample %d of previous'+\
-                  ' run'%(np.argmax(obj)+1))
+            print('NOTE: Optimizer starting over from sample '+\
+                    '%d of previous run'%(np.argmax(obj)+1))
             print('='*80)
             continuation = True
         else:
@@ -1039,7 +1057,7 @@ class PMMInSitu:
                                                                     t2-t1, o))
             print("="*80)
             self.Save_Params(np.array(norms), progress_dir+\
-                '/norms_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+                '/norms_Wvg_%.1fGHz_fpm_%.1fGHz'%(f, fpm)+ID+'.csv')
         else:
             if restart_obj:
                 t1 = time.time()
@@ -1054,7 +1072,7 @@ class PMMInSitu:
                                                                     t2-t1, o))
                 print("="*80)
                 self.Save_Params(np.array(norms), progress_dir+\
-                    '/norms_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+                    '/norms_Wvg_%.1fGHz_fpm_%.1fGHz'%(f, fpm)+ID+'.csv')
             else:
                 pass
 
@@ -1077,6 +1095,13 @@ class PMMInSitu:
                 rho_new[iter_bulbs] = rho[iter_bulbs] +\
                                     np.random.normal(0, p, iter_bulbs.shape)
 
+                if verbose:
+                    print("-"*80)
+                    print("Bulbs sampled:" , iter_bulbs+1)
+                    print("fp before:", self.Scale_Rho_fp(rho[iter_bulbs],self.f_a(fpm)))
+                    print("fp after:", self.Scale_Rho_fp(rho_new[iter_bulbs],self.f_a(fpm)))
+                    print("-"*80)
+
                 # Compute objective
                 o, norms = self.Wvg_Obj_Get(rho, fpm, k, S, f,\
                                                 df, objective, norms, duty_cycle)
@@ -1096,6 +1121,15 @@ class PMMInSitu:
                 else:
                     raise RuntimeError("That optimizer is not implemented.")
 
+                if verbose:
+                    print("-"*80)
+                    print("Optimizer adjustment:")
+                    print("fp before:\n",\
+                        self.Scale_Rho_fp(rho_evolution[rho_evolution.shape[0]-1,\
+                                                        iter_bulbs],self.f_a(fpm)))
+                    print("fp after:\n", self.Scale_Rho_fp(rho[iter_bulbs],self.f_a(fpm)))
+                    print("-"*80)
+
                 # Add to obj and rho tracker
                 rho_evolution = np.row_stack([rho_evolution, rho])
                 obj.append(o)
@@ -1109,14 +1143,14 @@ class PMMInSitu:
             print("="*80)
 
             self.Save_Params(rho_evolution, progress_dir+\
-                    '/rho_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+                    '/rho_Wvg_%.1fGHz_fpm_%.1fGHz'%(f, fpm)+ID+'.csv')
             self.Save_Params(np.array(obj), progress_dir+\
-                    '/obj_Wvg_%.1fGHz_fpm_%.1fGHz.csv'%(f, fpm))
+                    '/obj_Wvg_%.1fGHz_fpm_%.1fGHz'%(f, fpm)+ID+'.csv')
 
         best_iter = np.argmax(np.array(obj))
         self.Wvg_Run_And_Plot(progress_dir, rho_evolution[best_iter,:], fpm, k, S, f,\
                             fwin = fwin, show = show)
-        self.Plot_Obj(progress_dir+'/obj_Wvg_%.1fGHz_fpm_%.1fGHz.pdf'%(f, fpm),\
+        self.Plot_Obj(progress_dir+'/obj_Wvg_%.1fGHz_fpm_%.1fGHz'%(f, fpm)+ID+'.pdf',\
                       np.array(obj))
 
         return
